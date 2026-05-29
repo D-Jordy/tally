@@ -1,0 +1,14 @@
+.git
+.claude
+.env
+.env.*
+node_modules
+vendor
+public/build
+public/hot
+storage/logs/*.log
+storage/framework/cache/data/*
+storage/framework/sessions/*
+storage/framework/views/*
+docker/
+*.md

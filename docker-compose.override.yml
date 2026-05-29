@@ -1,0 +1,11 @@
+services:
+  web:
+    labels:
+      - "traefik.http.routers.portfolio-tracker.rule=Host(`portfolio-tracker.localhost`)"
+    networks:
+      - default
+      - stack
+
+networks:
+  stack:
+    external: true
