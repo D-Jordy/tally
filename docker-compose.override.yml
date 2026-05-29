@@ -1,5 +1,6 @@
 services:
   web:
+    ports: !reset []
     labels:
       - "traefik.http.routers.portfolio-tracker.rule=Host(`portfolio-tracker.localhost`)"
     networks:
