@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PriceHistory extends Model
 {
+    protected $table = 'price_history';
+
     protected $fillable = ['instrument_id', 'date', 'close', 'currency'];
 
     protected $casts = [
