@@ -41,6 +41,37 @@ class YahooFinanceAdapter
     }
 
     /**
+     * Fetch historical dividends from $fromDate onward.
+     * Yahoo only returns dividends already gone ex — never future announced ones.
+     * Returns [['ex_date' => 'YYYY-MM-DD', 'amount' => float, 'currency' => string], ...]
+     * sorted by ex_date. Amounts are in the instrument's quote currency (e.g. GBp for LSE).
+     */
+    public function dividends(string $symbol, string $fromDate): array
+    {
+        $result   = $this->chart($symbol, $fromDate);
+        $events   = $result['events']['dividends'] ?? [];
+        $currency = $result['meta']['currency'] ?? '';
+
+        $rows = [];
+
+        foreach ($events as $event) {
+            if (!isset($event['date'], $event['amount'])) {
+                continue;
+            }
+
+            $rows[] = [
+                'ex_date'  => Carbon::createFromTimestamp($event['date'])->toDateString(),
+                'amount'   => (float) $event['amount'],
+                'currency' => $currency,
+            ];
+        }
+
+        usort($rows, fn($a, $b) => $a['ex_date'] <=> $b['ex_date']);
+
+        return $rows;
+    }
+
+    /**
      * Fetch the latest close. Returns ['symbol', 'price', 'currency', 'date']
      */
     public function quote(string $symbol): array
@@ -113,6 +144,7 @@ class YahooFinanceAdapter
                 'interval' => '1d',
                 'period1'  => Carbon::parse($fromDate)->startOfDay()->unix(),
                 'period2'  => now()->unix(),
+                'events'   => 'div',
             ]);
 
         if (!$response->successful()) {
