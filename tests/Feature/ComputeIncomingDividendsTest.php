@@ -222,8 +222,70 @@ class ComputeIncomingDividendsTest extends TestCase
 
         $result = $action->forUser($user);
 
+        $this->assertCount(0, $result['confirmed']);
         $this->assertCount(0, $result['events']);
         $this->assertCount(12, $result['monthly']);
         $this->assertSame(0.0, $result['summary']['next_12m_total_eur']);
+        $this->assertSame(0, $result['summary']['confirmed_count']);
+    }
+
+    public function test_confirmed_row_appears_in_confirmed_list_not_events(): void
+    {
+        $instrument = Instrument::factory()->create(['yahoo_symbol' => 'TEST', 'quote_currency' => 'USD']);
+        $this->seedQuarterlyDividends($instrument->id, 0.50, 'USD');
+        $this->seedFxRate('USD', 0.92);
+
+        // Seed one confirmed upcoming row.
+        Dividend::factory()->create([
+            'instrument_id'    => $instrument->id,
+            'ex_date'          => now()->addDays(14)->toDateString(),
+            'amount_per_share' => 0.50,
+            'currency'         => 'USD',
+            'confirmed'        => true,
+        ]);
+
+        $user   = User::factory()->create();
+        $action = $this->makeAction([
+            ['instrument_id' => $instrument->id, 'quantity' => 100],
+        ]);
+
+        $result = $action->forUser($user);
+
+        $this->assertCount(1, $result['confirmed']);
+        $this->assertSame(1, $result['summary']['confirmed_count']);
+        $this->assertTrue($result['confirmed'][0]['confirmed']);
+        $this->assertFalse($result['confirmed'][0]['projected']);
+    }
+
+    public function test_projected_event_is_skipped_when_confirmed_nearby(): void
+    {
+        $instrument = Instrument::factory()->create(['yahoo_symbol' => 'TEST', 'quote_currency' => 'USD']);
+        $this->seedQuarterlyDividends($instrument->id, 0.50, 'USD');
+        $this->seedFxRate('USD', 0.92);
+
+        // Confirmed event very close to where the cadence projection would land.
+        Dividend::factory()->create([
+            'instrument_id'    => $instrument->id,
+            'ex_date'          => now()->addDays(10)->toDateString(),
+            'amount_per_share' => 0.50,
+            'currency'         => 'USD',
+            'confirmed'        => true,
+        ]);
+
+        $user   = User::factory()->create();
+        $action = $this->makeAction([
+            ['instrument_id' => $instrument->id, 'quantity' => 100],
+        ]);
+
+        $result = $action->forUser($user);
+
+        // No projected event should overlap with the confirmed one.
+        foreach ($result['events'] as $event) {
+            $diff = abs(
+                \Carbon\Carbon::parse($event['ex_date'])
+                    ->diffInDays(\Carbon\Carbon::parse($result['confirmed'][0]['ex_date']))
+            );
+            $this->assertGreaterThan(20, $diff, "Projected event too close to confirmed event");
+        }
     }
 }

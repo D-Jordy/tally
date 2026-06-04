@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Dividend;
 use App\Models\Instrument;
 use App\Services\MarketData\DividendSyncService;
 use App\Services\MarketData\YahooFinanceAdapter;
@@ -24,6 +25,7 @@ class DividendSyncTest extends TestCase
                     ['ex_date' => '2023-05-12', 'amount' => 0.24, 'currency' => 'USD'],
                     ['ex_date' => '2023-08-11', 'amount' => 0.24, 'currency' => 'USD'],
                 ]);
+            $mock->shouldReceive('upcomingDividend')->andReturn(null);
         });
 
         $rows = app(DividendSyncService::class)->syncInstrument($instrument);
@@ -48,6 +50,7 @@ class DividendSyncTest extends TestCase
                 ->andReturn([
                     ['ex_date' => '2023-03-09', 'amount' => 28.8, 'currency' => 'GBp'],
                 ]);
+            $mock->shouldReceive('upcomingDividend')->andReturn(null);
         });
 
         app(DividendSyncService::class)->syncInstrument($instrument);
@@ -71,6 +74,7 @@ class DividendSyncTest extends TestCase
             $mock->shouldReceive('dividends')
                 ->twice()
                 ->andReturn($rows);
+            $mock->shouldReceive('upcomingDividend')->andReturn(null);
         });
 
         $service = app(DividendSyncService::class);
@@ -88,11 +92,85 @@ class DividendSyncTest extends TestCase
 
         $this->mock(YahooFinanceAdapter::class, function ($mock) {
             $mock->shouldNotReceive('dividends');
+            $mock->shouldNotReceive('upcomingDividend');
         });
 
         $rows = app(DividendSyncService::class)->syncInstrument($instrument);
 
         $this->assertSame(0, $rows);
         $this->assertDatabaseCount('dividends', 0);
+    }
+
+    public function test_confirmed_upcoming_row_is_upserted_with_latest_historical_amount(): void
+    {
+        $instrument = Instrument::factory()->create(['yahoo_symbol' => 'AAPL']);
+
+        $futureExDate  = now()->addDays(20)->toDateString();
+        $futurePayDate = now()->addDays(27)->toDateString();
+
+        $this->mock(YahooFinanceAdapter::class, function ($mock) use ($futureExDate, $futurePayDate) {
+            $mock->shouldReceive('dividends')
+                ->andReturn([
+                    ['ex_date' => '2023-08-11', 'amount' => 0.24, 'currency' => 'USD'],
+                    ['ex_date' => '2023-11-10', 'amount' => 0.25, 'currency' => 'USD'],
+                ]);
+            $mock->shouldReceive('upcomingDividend')
+                ->andReturn(['ex_date' => $futureExDate, 'pay_date' => $futurePayDate]);
+        });
+
+        app(DividendSyncService::class)->syncInstrument($instrument);
+
+        // Should have 2 historical + 1 confirmed row.
+        $this->assertDatabaseCount('dividends', 3);
+
+        $this->assertDatabaseHas('dividends', [
+            'instrument_id'    => $instrument->id,
+            'ex_date'          => $futureExDate,
+            'pay_date'         => $futurePayDate,
+            'amount_per_share' => '0.25000000', // latest historical amount
+            'currency'         => 'USD',
+            'confirmed'        => true,
+        ]);
+    }
+
+    public function test_confirmed_row_is_not_created_when_upcoming_dividend_returns_null(): void
+    {
+        $instrument = Instrument::factory()->create(['yahoo_symbol' => 'AAPL']);
+
+        $this->mock(YahooFinanceAdapter::class, function ($mock) {
+            $mock->shouldReceive('dividends')
+                ->andReturn([
+                    ['ex_date' => '2023-08-11', 'amount' => 0.24, 'currency' => 'USD'],
+                ]);
+            $mock->shouldReceive('upcomingDividend')->andReturn(null);
+        });
+
+        app(DividendSyncService::class)->syncInstrument($instrument);
+
+        $this->assertDatabaseCount('dividends', 1);
+        $this->assertDatabaseMissing('dividends', ['confirmed' => true]);
+    }
+
+    public function test_confirmed_upsert_is_idempotent(): void
+    {
+        $instrument = Instrument::factory()->create(['yahoo_symbol' => 'AAPL']);
+
+        $futureExDate = now()->addDays(20)->toDateString();
+
+        $this->mock(YahooFinanceAdapter::class, function ($mock) use ($futureExDate) {
+            $mock->shouldReceive('dividends')
+                ->andReturn([
+                    ['ex_date' => '2023-08-11', 'amount' => 0.24, 'currency' => 'USD'],
+                ]);
+            $mock->shouldReceive('upcomingDividend')
+                ->andReturn(['ex_date' => $futureExDate, 'pay_date' => null]);
+        });
+
+        $service = app(DividendSyncService::class);
+        $service->syncInstrument($instrument);
+        $service->syncInstrument($instrument);
+
+        $confirmed = Dividend::where('confirmed', true)->get();
+        $this->assertCount(1, $confirmed);
     }
 }

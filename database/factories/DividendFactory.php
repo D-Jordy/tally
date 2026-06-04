@@ -19,6 +19,7 @@ class DividendFactory extends Factory
             'pay_date'         => null,
             'amount_per_share' => fake()->randomFloat(4, 0.10, 2.00),
             'currency'         => 'USD',
+            'confirmed'        => false,
         ];
     }
 }

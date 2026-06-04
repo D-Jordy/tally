@@ -12,9 +12,9 @@ class DividendController extends Controller
     {
         $user = auth()->user();
 
-        ['events' => $events, 'monthly' => $monthly, 'summary' => $summary]
+        ['confirmed' => $confirmed, 'events' => $events, 'monthly' => $monthly, 'summary' => $summary]
             = $compute->forUser($user);
 
-        return Inertia::render('Dividends/Index', compact('events', 'monthly', 'summary'));
+        return Inertia::render('Dividends/Index', compact('confirmed', 'events', 'monthly', 'summary'));
     }
 }

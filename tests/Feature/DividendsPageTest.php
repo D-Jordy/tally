@@ -21,8 +21,9 @@ class DividendsPageTest extends TestCase
     private function mockEmptyCompute(): void
     {
         $empty = [
-            'events'  => [],
-            'monthly' => array_map(
+            'confirmed' => [],
+            'events'    => [],
+            'monthly'   => array_map(
                 fn ($i) => ['month' => now()->addMonths($i)->format('Y-m'), 'expected_eur' => 0.0],
                 range(0, 11)
             ),
@@ -30,6 +31,7 @@ class DividendsPageTest extends TestCase
                 'next_12m_total_eur'        => 0.0,
                 'trailing_12m_received_eur' => 0.0,
                 'instrument_count'          => 0,
+                'confirmed_count'           => 0,
             ],
         ];
 
@@ -58,6 +60,7 @@ class DividendsPageTest extends TestCase
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('Dividends/Index')
+                ->has('confirmed')
                 ->has('events')
                 ->has('monthly')
                 ->has('summary')
