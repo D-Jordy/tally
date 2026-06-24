@@ -10,6 +10,7 @@ use App\Models\Dividend;
 use App\Models\FxRate;
 use App\Models\Instrument;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -30,7 +31,7 @@ class ComputeIncomingDividendsTest extends TestCase
         $portfolioMock = $this->mock(ComputePortfolio::class);
         $portfolioMock->shouldReceive('forUser')->andReturn([
             'positions' => $mockPositions,
-            'summary'   => [],
+            'summary' => [],
         ]);
 
         return app(ComputeIncomingDividends::class);
@@ -41,10 +42,10 @@ class ComputeIncomingDividendsTest extends TestCase
     {
         for ($i = 4; $i >= 1; $i--) {
             Dividend::factory()->create([
-                'instrument_id'    => $instrumentId,
-                'ex_date'          => now()->subDays($i * 90)->toDateString(),
+                'instrument_id' => $instrumentId,
+                'ex_date' => now()->subDays($i * 90)->toDateString(),
                 'amount_per_share' => $amount,
-                'currency'         => $currency,
+                'currency' => $currency,
             ]);
         }
     }
@@ -52,8 +53,8 @@ class ComputeIncomingDividendsTest extends TestCase
     private function seedFxRate(string $currency, float $rate): void
     {
         FxRate::create([
-            'date'        => now()->toDateString(),
-            'currency'    => $currency,
+            'date' => now()->toDateString(),
+            'currency' => $currency,
             'rate_to_eur' => $rate,
         ]);
     }
@@ -68,7 +69,7 @@ class ComputeIncomingDividendsTest extends TestCase
         $this->seedQuarterlyDividends($instrument->id, 0.50, 'USD');
         $this->seedFxRate('USD', 0.92);
 
-        $user   = User::factory()->create();
+        $user = User::factory()->create();
         $action = $this->makeAction([
             ['instrument_id' => $instrument->id, 'quantity' => 100],
         ]);
@@ -98,7 +99,7 @@ class ComputeIncomingDividendsTest extends TestCase
         $this->seedQuarterlyDividends($instrument->id, 0.25, 'USD');
         $this->seedFxRate('USD', 0.90);
 
-        $user   = User::factory()->create();
+        $user = User::factory()->create();
         $action = $this->makeAction([
             ['instrument_id' => $instrument->id, 'quantity' => 200],
         ]);
@@ -116,7 +117,7 @@ class ComputeIncomingDividendsTest extends TestCase
         $instrument = Instrument::factory()->create();
         // No Dividend rows — instrument should not appear.
 
-        $user   = User::factory()->create();
+        $user = User::factory()->create();
         $action = $this->makeAction([
             ['instrument_id' => $instrument->id, 'quantity' => 50],
         ]);
@@ -132,13 +133,13 @@ class ComputeIncomingDividendsTest extends TestCase
         $instrument = Instrument::factory()->create();
 
         Dividend::factory()->create([
-            'instrument_id'    => $instrument->id,
-            'ex_date'          => now()->subMonths(3)->toDateString(),
+            'instrument_id' => $instrument->id,
+            'ex_date' => now()->subMonths(3)->toDateString(),
             'amount_per_share' => 0.50,
-            'currency'         => 'USD',
+            'currency' => 'USD',
         ]);
 
-        $user   = User::factory()->create();
+        $user = User::factory()->create();
         $action = $this->makeAction([
             ['instrument_id' => $instrument->id, 'quantity' => 100],
         ]);
@@ -156,7 +157,7 @@ class ComputeIncomingDividendsTest extends TestCase
         $this->seedQuarterlyDividends($instrument->id, 0.30, 'GBP'); // already £0.30
         $this->seedFxRate('GBP', 1.17);
 
-        $user   = User::factory()->create();
+        $user = User::factory()->create();
         $action = $this->makeAction([
             ['instrument_id' => $instrument->id, 'quantity' => 100],
         ]);
@@ -171,7 +172,7 @@ class ComputeIncomingDividendsTest extends TestCase
 
     public function test_monthly_buckets_cover_exactly_12_months(): void
     {
-        $user   = User::factory()->create();
+        $user = User::factory()->create();
         $action = $this->makeAction([]);  // no positions → empty result still has 12 buckets
 
         $result = $action->forUser($user);
@@ -183,29 +184,29 @@ class ComputeIncomingDividendsTest extends TestCase
 
     public function test_trailing_12m_received_sums_cash_movements(): void
     {
-        $user       = User::factory()->create();
+        $user = User::factory()->create();
         $instrument = Instrument::factory()->create();
-        $account    = Account::factory()->create(['user_id' => $user->id]);
+        $account = Account::factory()->create(['user_id' => $user->id]);
         $this->seedFxRate('USD', 0.92);
 
         // 200 USD dividend received 6 months ago.
         CashMovement::factory()->create([
-            'account_id'    => $account->id,
+            'account_id' => $account->id,
             'instrument_id' => $instrument->id,
-            'type'          => 'dividend',
-            'amount'        => 200.00,
-            'currency'      => 'USD',
-            'occurred_at'   => now()->subMonths(6),
+            'type' => 'dividend',
+            'amount' => 200.00,
+            'currency' => 'USD',
+            'occurred_at' => now()->subMonths(6),
         ]);
 
         // 30 USD withholding_tax (negative — reduces net).
         CashMovement::factory()->create([
-            'account_id'    => $account->id,
+            'account_id' => $account->id,
             'instrument_id' => $instrument->id,
-            'type'          => 'withholding_tax',
-            'amount'        => -30.00,
-            'currency'      => 'USD',
-            'occurred_at'   => now()->subMonths(6),
+            'type' => 'withholding_tax',
+            'amount' => -30.00,
+            'currency' => 'USD',
+            'occurred_at' => now()->subMonths(6),
         ]);
 
         $action = $this->makeAction([]);
@@ -217,7 +218,7 @@ class ComputeIncomingDividendsTest extends TestCase
 
     public function test_empty_result_for_user_with_no_positions(): void
     {
-        $user   = User::factory()->create();
+        $user = User::factory()->create();
         $action = $this->makeAction([]);
 
         $result = $action->forUser($user);
@@ -237,14 +238,14 @@ class ComputeIncomingDividendsTest extends TestCase
 
         // Seed one confirmed upcoming row.
         Dividend::factory()->create([
-            'instrument_id'    => $instrument->id,
-            'ex_date'          => now()->addDays(14)->toDateString(),
+            'instrument_id' => $instrument->id,
+            'ex_date' => now()->addDays(14)->toDateString(),
             'amount_per_share' => 0.50,
-            'currency'         => 'USD',
-            'confirmed'        => true,
+            'currency' => 'USD',
+            'confirmed' => true,
         ]);
 
-        $user   = User::factory()->create();
+        $user = User::factory()->create();
         $action = $this->makeAction([
             ['instrument_id' => $instrument->id, 'quantity' => 100],
         ]);
@@ -265,14 +266,14 @@ class ComputeIncomingDividendsTest extends TestCase
 
         // Confirmed event very close to where the cadence projection would land.
         Dividend::factory()->create([
-            'instrument_id'    => $instrument->id,
-            'ex_date'          => now()->addDays(10)->toDateString(),
+            'instrument_id' => $instrument->id,
+            'ex_date' => now()->addDays(10)->toDateString(),
             'amount_per_share' => 0.50,
-            'currency'         => 'USD',
-            'confirmed'        => true,
+            'currency' => 'USD',
+            'confirmed' => true,
         ]);
 
-        $user   = User::factory()->create();
+        $user = User::factory()->create();
         $action = $this->makeAction([
             ['instrument_id' => $instrument->id, 'quantity' => 100],
         ]);
@@ -282,10 +283,10 @@ class ComputeIncomingDividendsTest extends TestCase
         // No projected event should overlap with the confirmed one.
         foreach ($result['events'] as $event) {
             $diff = abs(
-                \Carbon\Carbon::parse($event['ex_date'])
-                    ->diffInDays(\Carbon\Carbon::parse($result['confirmed'][0]['ex_date']))
+                Carbon::parse($event['ex_date'])
+                    ->diffInDays(Carbon::parse($result['confirmed'][0]['ex_date']))
             );
-            $this->assertGreaterThan(20, $diff, "Projected event too close to confirmed event");
+            $this->assertGreaterThan(20, $diff, 'Projected event too close to confirmed event');
         }
     }
 }

@@ -20,31 +20,32 @@ This tracker accepts DeGiro's CSV exports and gives the insights I kept missing.
 ---
 
 ## Tech stack
-- **Laravel**
-- **Inertia.js + Vue**
-- **Tailwind**
-- **ApexCharts**
+- **Laravel** (PostgreSQL)
+- **Filament 5** panel — the whole UI, with a custom "Divio" theme
+- **Livewire + Tailwind v4**
+- **ApexCharts** (via `leandrocfe/filament-apex-charts`)
 ---
 
 ## Running locally
-I have yet to set up Docker, but you can spin up by cloning the repo and
+The app runs on Docker Compose (PHP-FPM, nginx, PostgreSQL, queue worker, scheduler).
 
 ```bash
-# Install PHP and Node dependencies
-composer install
-npm install
-
-# Copy the environment file and generate an app key
+# Copy the environment file
 cp .env.example .env
-php artisan key:generate
 
-# Run migrations (ensure your database is set up in .env first)
-php artisan migrate
+# Build and start the stack
+docker compose up -d --build
 
-# Build frontend assets and start the local server
-npm run dev
-php artisan serve
+# Install dependencies, set up the app and build the Filament theme
+docker compose exec app composer install
+docker compose exec app php artisan key:generate
+docker compose exec app php artisan migrate
+docker compose exec app npm install
+docker compose exec app npm run build
 ```
+
+The panel is then served at `http://localhost:8000` (open registration).
+
 ---
 
 ## Data & privacy

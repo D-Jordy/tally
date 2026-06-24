@@ -33,10 +33,10 @@ class DividendSyncTest extends TestCase
         $this->assertSame(3, $rows);
         $this->assertDatabaseCount('dividends', 3);
         $this->assertDatabaseHas('dividends', [
-            'instrument_id'    => $instrument->id,
-            'ex_date'          => '2023-02-10',
+            'instrument_id' => $instrument->id,
+            'ex_date' => '2023-02-10',
             'amount_per_share' => '0.23000000',
-            'currency'         => 'USD',
+            'currency' => 'USD',
         ]);
     }
 
@@ -56,9 +56,9 @@ class DividendSyncTest extends TestCase
         app(DividendSyncService::class)->syncInstrument($instrument);
 
         $this->assertDatabaseHas('dividends', [
-            'instrument_id'    => $instrument->id,
+            'instrument_id' => $instrument->id,
             'amount_per_share' => '0.28800000',
-            'currency'         => 'GBP',
+            'currency' => 'GBP',
         ]);
     }
 
@@ -105,7 +105,7 @@ class DividendSyncTest extends TestCase
     {
         $instrument = Instrument::factory()->create(['yahoo_symbol' => 'AAPL']);
 
-        $futureExDate  = now()->addDays(20)->toDateString();
+        $futureExDate = now()->addDays(20)->toDateString();
         $futurePayDate = now()->addDays(27)->toDateString();
 
         $this->mock(YahooFinanceAdapter::class, function ($mock) use ($futureExDate, $futurePayDate) {
@@ -124,12 +124,12 @@ class DividendSyncTest extends TestCase
         $this->assertDatabaseCount('dividends', 3);
 
         $this->assertDatabaseHas('dividends', [
-            'instrument_id'    => $instrument->id,
-            'ex_date'          => $futureExDate,
-            'pay_date'         => $futurePayDate,
+            'instrument_id' => $instrument->id,
+            'ex_date' => $futureExDate,
+            'pay_date' => $futurePayDate,
             'amount_per_share' => '0.25000000', // latest historical amount
-            'currency'         => 'USD',
-            'confirmed'        => true,
+            'currency' => 'USD',
+            'confirmed' => true,
         ]);
     }
 

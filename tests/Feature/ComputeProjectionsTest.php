@@ -22,9 +22,9 @@ class ComputeProjectionsTest extends TestCase
     /**
      * Build a ComputeProjections with all three dependencies mocked.
      *
-     * @param  array  $positions      ComputePortfolio positions list
+     * @param  array  $positions  ComputePortfolio positions list
      * @param  float  $totalValueEur  ComputePortfolio summary total_value_eur
-     * @param  array  $history        ComputePortfolioHistory daily records
+     * @param  array  $history  ComputePortfolioHistory daily records
      * @param  float  $next12mDivEur  ComputeIncomingDividends summary.next_12m_total_eur
      */
     private function makeAction(
@@ -34,24 +34,24 @@ class ComputeProjectionsTest extends TestCase
         float $next12mDivEur = 0.0,
     ): ComputeProjections {
         $this->mock(ComputePortfolio::class)
-             ->shouldReceive('forUser')
-             ->andReturn([
-                 'positions' => $positions,
-                 'summary'   => ['total_value_eur' => $totalValueEur],
-             ]);
+            ->shouldReceive('forUser')
+            ->andReturn([
+                'positions' => $positions,
+                'summary' => ['total_value_eur' => $totalValueEur],
+            ]);
 
         $this->mock(ComputePortfolioHistory::class)
-             ->shouldReceive('forUser')
-             ->andReturn($history);
+            ->shouldReceive('forUser')
+            ->andReturn($history);
 
         $this->mock(ComputeIncomingDividends::class)
-             ->shouldReceive('forUser')
-             ->andReturn([
-                 'confirmed' => [],
-                 'events'    => [],
-                 'monthly'   => [],
-                 'summary'   => ['next_12m_total_eur' => $next12mDivEur],
-             ]);
+            ->shouldReceive('forUser')
+            ->andReturn([
+                'confirmed' => [],
+                'events' => [],
+                'monthly' => [],
+                'summary' => ['next_12m_total_eur' => $next12mDivEur],
+            ]);
 
         return app(ComputeProjections::class);
     }
@@ -63,11 +63,11 @@ class ComputeProjectionsTest extends TestCase
             // Day of deposit: net_gain = totalValue - cumDeposits => 0 - deposit... but actually
             // cumDeposits = deposit, net_gain = total_value - deposit = 0 initially (buy on day 1).
             ['date' => $startDate, 'total_value_eur' => $deposit, 'net_gain_eur' => 0.0,
-             'cumulative_dividends_eur' => 0.0, 'cumulative_fees_eur' => 0.0],
+                'cumulative_dividends_eur' => 0.0, 'cumulative_fees_eur' => 0.0],
             // Current day: portfolio has grown.
             ['date' => now()->toDateString(), 'total_value_eur' => $currentValue,
-             'net_gain_eur' => $currentValue - $deposit,
-             'cumulative_dividends_eur' => 0.0, 'cumulative_fees_eur' => 0.0],
+                'net_gain_eur' => $currentValue - $deposit,
+                'cumulative_dividends_eur' => 0.0, 'cumulative_fees_eur' => 0.0],
         ];
     }
 
@@ -77,7 +77,7 @@ class ComputeProjectionsTest extends TestCase
 
     public function test_value_series_has_horizon_plus_one_points(): void
     {
-        $user   = User::factory()->create();
+        $user = User::factory()->create();
         $action = $this->makeAction([], 10000, $this->oneDepositHistory(10000, 10000));
 
         $result = $action->forUser($user, 5);
@@ -89,7 +89,7 @@ class ComputeProjectionsTest extends TestCase
 
     public function test_value_series_compounds_with_contribution(): void
     {
-        $user   = User::factory()->create();
+        $user = User::factory()->create();
         $history = $this->oneDepositHistory(10000, 12000); // XIRR positive
         $action = $this->makeAction([], 10000, $history);
 
@@ -106,7 +106,7 @@ class ComputeProjectionsTest extends TestCase
 
     public function test_dividend_series_grows_at_same_rate(): void
     {
-        $user   = User::factory()->create();
+        $user = User::factory()->create();
         $action = $this->makeAction([], 10000, $this->oneDepositHistory(10000, 12000), 500.0);
 
         $result = $action->forUser($user, 3);
@@ -118,12 +118,12 @@ class ComputeProjectionsTest extends TestCase
 
     public function test_no_analyst_data_means_growth_equals_prior_rate(): void
     {
-        $user       = User::factory()->create();
+        $user = User::factory()->create();
         $instrument = Instrument::factory()->create(['analyst_target_price' => null]);
 
         $positions = [[
-            'instrument_id'     => $instrument->id,
-            'latest_price'      => 100.0,
+            'instrument_id' => $instrument->id,
+            'latest_price' => 100.0,
             'current_value_eur' => 5000.0,
         ]];
 
@@ -137,12 +137,12 @@ class ComputeProjectionsTest extends TestCase
 
     public function test_analyst_target_influences_blended_rate(): void
     {
-        $user       = User::factory()->create();
+        $user = User::factory()->create();
         $instrument = Instrument::factory()->create(['analyst_target_price' => 150.0]);
 
         $positions = [[
-            'instrument_id'     => $instrument->id,
-            'latest_price'      => 100.0,   // 50% upside → analyst implied = 0.50
+            'instrument_id' => $instrument->id,
+            'latest_price' => 100.0,   // 50% upside → analyst implied = 0.50
             'current_value_eur' => 10000.0,
         ]];
 
@@ -158,7 +158,7 @@ class ComputeProjectionsTest extends TestCase
 
     public function test_null_xirr_falls_back_to_default_rate(): void
     {
-        $user   = User::factory()->create();
+        $user = User::factory()->create();
         // Empty history → XIRR cannot be computed.
         $action = $this->makeAction([], 0, []);
 
@@ -170,12 +170,12 @@ class ComputeProjectionsTest extends TestCase
 
     public function test_growth_rate_is_clamped_to_sane_bounds(): void
     {
-        $user       = User::factory()->create();
+        $user = User::factory()->create();
         $instrument = Instrument::factory()->create(['analyst_target_price' => 10000.0]); // absurd upside
 
         $positions = [[
-            'instrument_id'     => $instrument->id,
-            'latest_price'      => 1.0,
+            'instrument_id' => $instrument->id,
+            'latest_price' => 1.0,
             'current_value_eur' => 5000.0,
         ]];
 
@@ -188,7 +188,7 @@ class ComputeProjectionsTest extends TestCase
 
     public function test_starting_value_and_horizon_years_are_returned(): void
     {
-        $user   = User::factory()->create();
+        $user = User::factory()->create();
         $action = $this->makeAction([], 25000, $this->oneDepositHistory(25000, 25000));
 
         $result = $action->forUser($user, 3);
@@ -196,35 +196,5 @@ class ComputeProjectionsTest extends TestCase
         $this->assertSame(3, $result['horizon_years']);
         $this->assertEqualsWithDelta(25000, $result['starting_value_eur'], 1.0);
         $this->assertSame(25000.0, $result['value_series'][0]['projected_value_eur']);
-    }
-
-    public function test_per_month_contribution_is_multiplied_by_12_on_save(): void
-    {
-        $this->withoutMiddleware();
-        $user = User::factory()->create();
-
-        $this->actingAs($user)
-            ->patch(route('projections.settings'), [
-                'contribution' => 500,
-                'cadence'      => 'month',
-            ])->assertRedirect();
-
-        $user->refresh();
-        $this->assertEqualsWithDelta(6000.0, $user->settings['annual_contribution_eur'], 0.01);
-    }
-
-    public function test_per_year_contribution_is_stored_as_is(): void
-    {
-        $this->withoutMiddleware();
-        $user = User::factory()->create();
-
-        $this->actingAs($user)
-            ->patch(route('projections.settings'), [
-                'contribution' => 3000,
-                'cadence'      => 'year',
-            ])->assertRedirect();
-
-        $user->refresh();
-        $this->assertEqualsWithDelta(3000.0, $user->settings['annual_contribution_eur'], 0.01);
     }
 }
