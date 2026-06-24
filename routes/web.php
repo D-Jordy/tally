@@ -1,9 +1,11 @@
 <?php
 
 use App\Http\Controllers\AccountController;
+use App\Http\Controllers\DividendController;
 use App\Http\Controllers\ImportController;
 use App\Http\Controllers\PortfolioController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ProjectionController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -26,6 +28,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Portfolio
     Route::get('/portfolio', [PortfolioController::class, 'index'])->name('portfolio');
+
+    // Dividend income forecast
+    Route::get('/dividends', [DividendController::class, 'index'])->name('dividends');
+
+    // Portfolio projections
+    Route::get('/projections', [ProjectionController::class, 'index'])->name('projections');
+    Route::patch('/projections/settings', [ProjectionController::class, 'updateSettings'])->name('projections.settings');
 
     // Accounts
     Route::get('/accounts', [AccountController::class, 'index'])->name('accounts.index');

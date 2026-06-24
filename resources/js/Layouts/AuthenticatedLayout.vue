@@ -40,6 +40,18 @@ const showingNavigationDropdown = ref(false);
                                     Portfolio
                                 </NavLink>
                                 <NavLink
+                                    :href="route('dividends')"
+                                    :active="route().current('dividends')"
+                                >
+                                    Dividends
+                                </NavLink>
+                                <NavLink
+                                    :href="route('projections')"
+                                    :active="route().current('projections')"
+                                >
+                                    Projections
+                                </NavLink>
+                                <NavLink
                                     :href="route('accounts.index')"
                                     :active="route().current('accounts.*')"
                                 >
@@ -147,10 +159,22 @@ const showingNavigationDropdown = ref(false);
                 >
                     <div class="space-y-1 pb-3 pt-2">
                         <ResponsiveNavLink
-                            :href="route('dashboard')"
-                            :active="route().current('dashboard')"
+                            :href="route('portfolio')"
+                            :active="route().current('portfolio')"
                         >
-                            Dashboard
+                            Portfolio
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            :href="route('dividends')"
+                            :active="route().current('dividends')"
+                        >
+                            Dividends
+                        </ResponsiveNavLink>
+                        <ResponsiveNavLink
+                            :href="route('projections')"
+                            :active="route().current('projections')"
+                        >
+                            Projections
                         </ResponsiveNavLink>
                         <ResponsiveNavLink
                             :href="route('accounts.index')"
