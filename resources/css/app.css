@@ -1,3 +1,9 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/*
+ * Legacy Breeze/Inertia stylesheet. Migrated to Tailwind v4 syntax so it keeps
+ * building alongside the Filament theme. Removed in phase 7 with the Inertia frontend.
+ */
+@import 'tailwindcss';
+@plugin '@tailwindcss/forms';
+
+@source '../js/**/*.vue';
+@source '../views/**/*.blade.php';

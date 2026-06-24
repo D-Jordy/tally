@@ -49,4 +49,11 @@ class UserScopingTest extends TestCase
 
         $this->assertTrue($user->canAccessPanel(Filament::getPanel('app')));
     }
+
+    public function test_authenticated_user_can_load_the_panel_dashboard(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->get('/app')->assertSuccessful();
+    }
 }

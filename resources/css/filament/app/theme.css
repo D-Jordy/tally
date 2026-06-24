@@ -1,0 +1,131 @@
+@import 'https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&family=Spectral:wght@400;500;600;700&display=swap';
+@import '../../../../vendor/filament/filament/resources/css/theme.css';
+
+@source '../../../../app/Filament/**/*';
+@source '../../../../resources/views/filament/**/*';
+
+/*
+ * Divio "Ledger/SaaS" hybrid theme.
+ * Palette and tokens come from design_handoff_divio_redesign/README.md.
+ * The neutral (gray) scale is remapped to warm paper tones so Filament's
+ * default surfaces inherit the look; per-component polish lands with each page.
+ */
+@theme {
+    --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    --font-serif: 'Spectral', ui-serif, Georgia, serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+    /* Warm paper neutral scale */
+    --color-gray-50: #f7f6f2;
+    --color-gray-100: #efece4;
+    --color-gray-200: #e6e3da;
+    --color-gray-300: #d8d2c4;
+    --color-gray-400: #c4bfb3;
+    --color-gray-500: #9a9488;
+    --color-gray-600: #8a8474;
+    --color-gray-700: #4a463d;
+    --color-gray-800: #2a2a2a;
+    --color-gray-900: #1a1a1a;
+    --color-gray-950: #141414;
+
+    /* Tighter, editorial radii */
+    --radius-lg: 0.5rem;   /* cards 8px */
+    --radius-xl: 0.5rem;
+    --radius-2xl: 0.75rem; /* frame / modal 12px */
+}
+
+:root {
+    /* Divio brand tokens, available to Blade overrides and widgets */
+    --divio-paper: #efece4;
+    --divio-surface: #f7f6f2;
+    --divio-card: #fcfbf8;
+    --divio-hairline: #e6e3da;
+    --divio-row-divider: #ece9e0;
+    --divio-ink: #1a1a1a;
+    --divio-body: #2a2a2a;
+    --divio-muted: #9a9488;
+    --divio-muted-nav: #8a8474;
+    --divio-faint: #c4bfb3;
+    --divio-positive: #2f7d52;
+    --divio-positive-bg: #e6efe6;
+    --divio-negative: #c0392b;
+    --divio-danger-bg: #fbeceb;
+    --divio-danger-border: #ecc4bf;
+    --divio-estimate-bg: #efe9dc;
+    --divio-estimate-text: #a89c86;
+    --divio-dashed: #d8d2c4;
+}
+
+/* Paper background on the outermost frame, warmer surface on the panel */
+.fi-body {
+    background-color: var(--divio-paper);
+    color: var(--divio-body);
+}
+
+.fi-main {
+    background-color: transparent;
+}
+
+/* Cards / sections: hairline borders over shadows */
+.fi-section,
+.fi-wi,
+.fi-ta-ctn {
+    background-color: var(--divio-card);
+    border: 1px solid var(--divio-hairline);
+    box-shadow: none;
+}
+
+/* Topbar as a hairline ledger bar */
+.fi-topbar nav {
+    background-color: var(--divio-card);
+    border-bottom: 1px solid var(--divio-hairline);
+    box-shadow: none;
+}
+
+/* Serif display for page + section titles */
+.fi-header-heading,
+.fi-section-header-heading,
+.fi-modal-heading {
+    font-family: var(--font-serif);
+    font-weight: 600;
+    color: var(--divio-ink);
+}
+
+.fi-header-heading {
+    font-size: 1.625rem; /* 26px */
+}
+
+/* Tabular numbers wherever figures align */
+.fi-ta-col,
+table tbody td {
+    font-feature-settings: 'tnum';
+    font-variant-numeric: tabular-nums;
+}
+
+/* Inputs: white field, tight radius */
+.fi-input,
+.fi-input-wrp {
+    background-color: #ffffff;
+    border-radius: 7px;
+}
+
+/* Top navigation as underlined text links, not pills */
+.fi-topbar-item {
+    border-radius: 0;
+}
+
+.fi-topbar-item .fi-topbar-item-btn {
+    color: var(--divio-muted-nav);
+    background: transparent;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+}
+
+.fi-topbar-item.fi-active .fi-topbar-item-btn {
+    color: var(--divio-ink);
+    border-bottom-color: var(--divio-ink);
+}
+
+.fi-topbar-item-label {
+    font-weight: 500;
+}

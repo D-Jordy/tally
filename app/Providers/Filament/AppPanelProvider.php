@@ -9,7 +9,6 @@ use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
-use Filament\Support\Colors\Color;
 use Filament\Widgets\AccountWidget;
 use Filament\Widgets\FilamentInfoWidget;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
@@ -27,13 +26,30 @@ class AppPanelProvider extends PanelProvider
             ->default()
             ->id('app')
             ->path('app')
+            ->viteTheme('resources/css/filament/app/theme.css')
+            ->brandName(config('app.name'))
+            ->brandLogo(fn () => view('filament.brand'))
+            ->topNavigation()
             ->login()
             ->registration()
             ->passwordReset()
             ->emailVerification()
             ->profile()
             ->colors([
-                'primary' => Color::Amber,
+                // Ink-weighted neutral scale: primary buttons/links read as #1a1a1a.
+                'primary' => [
+                    50 => '#f6f5f3',
+                    100 => '#e6e3da',
+                    200 => '#cdc8ba',
+                    300 => '#a8a294',
+                    400 => '#6e6a5f',
+                    500 => '#3a3833',
+                    600 => '#1a1a1a',
+                    700 => '#161616',
+                    800 => '#121212',
+                    900 => '#0e0e0e',
+                    950 => '#0a0a0a',
+                ],
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
