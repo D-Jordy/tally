@@ -19,7 +19,7 @@ class FilamentProjectionsPageTest extends TestCase
         Livewire::actingAs($user)
             ->test(Projections::class)
             ->assertSuccessful()
-            ->assertSee('Verwacht over 5 jaar');
+            ->assertSee(__('projections.kpi.expected', ['years' => 5]));
     }
 
     public function test_horizon_toggle_updates_the_kpi_label(): void
@@ -29,7 +29,7 @@ class FilamentProjectionsPageTest extends TestCase
         Livewire::actingAs($user)
             ->test(Projections::class)
             ->set('horizon', 10)
-            ->assertSee('Verwacht over 10 jaar');
+            ->assertSee(__('projections.kpi.expected', ['years' => 10]));
     }
 
     public function test_annual_contribution_persists_to_user_settings(): void

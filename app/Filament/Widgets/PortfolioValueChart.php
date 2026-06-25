@@ -73,7 +73,9 @@ class PortfolioValueChart extends ApexChartWidget
 
     protected function extraJsOptions(): ?RawJs
     {
-        return RawJs::make(<<<'JS'
+        $jsLocale = app()->getLocale() === 'nl' ? 'nl-NL' : 'en-US';
+
+        return RawJs::make(<<<JS
         {
             yaxis: {
                 labels: {
@@ -86,7 +88,7 @@ class PortfolioValueChart extends ApexChartWidget
                 x: { format: 'dd MMM yyyy' },
                 y: {
                     formatter: function (value) {
-                        return new Intl.NumberFormat('nl-NL', {
+                        return new Intl.NumberFormat('{$jsLocale}', {
                             style: 'currency', currency: 'EUR', maximumFractionDigits: 0,
                         }).format(value);
                     },

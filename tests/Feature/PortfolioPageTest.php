@@ -22,7 +22,7 @@ class PortfolioPageTest extends TestCase
         Livewire::actingAs($user)
             ->test(Portfolio::class)
             ->assertSuccessful()
-            ->assertSee('Nog geen posities');
+            ->assertSee(__('portfolio.empty.title'));
     }
 
     public function test_lists_open_positions_with_a_summary(): void
@@ -39,7 +39,7 @@ class PortfolioPageTest extends TestCase
             ->test(Portfolio::class)
             ->assertSuccessful()
             ->assertSee('ASML Holding')
-            ->assertDontSee('Nog geen posities');
+            ->assertDontSee(__('portfolio.empty.title'));
     }
 
     public function test_does_not_leak_another_users_positions(): void
@@ -53,6 +53,6 @@ class PortfolioPageTest extends TestCase
             ->test(Portfolio::class)
             ->assertSuccessful()
             ->assertDontSee('Vreemde Positie')
-            ->assertSee('Nog geen posities');
+            ->assertSee(__('portfolio.empty.title'));
     }
 }

@@ -19,7 +19,7 @@ class ProjectionsGrowthChart extends ApexChartWidget
 
     protected function getHeading(): ?string
     {
-        return 'Verwachte groei';
+        return __('projections.chart.heading');
     }
 
     protected function getOptions(): array
@@ -34,12 +34,12 @@ class ProjectionsGrowthChart extends ApexChartWidget
                 'fontFamily' => 'IBM Plex Mono, monospace',
             ],
             'series' => [[
-                'name' => 'Waarde',
+                'name' => __('projections.chart.value'),
                 'data' => $series->map(fn (array $point): float => (float) $point['projected_value_eur'])->all(),
             ]],
             'xaxis' => [
-                'categories' => $series->map(fn (array $point): string => (int) $point['year'] === 0 ? 'nu' : (string) $point['year'])->all(),
-                'title' => ['text' => 'jaren', 'style' => ['color' => '#9a9488', 'fontFamily' => 'IBM Plex Mono, monospace']],
+                'categories' => $series->map(fn (array $point): string => (int) $point['year'] === 0 ? __('projections.chart.now') : (string) $point['year'])->all(),
+                'title' => ['text' => __('projections.chart.years_axis'), 'style' => ['color' => '#9a9488', 'fontFamily' => 'IBM Plex Mono, monospace']],
                 'labels' => ['style' => ['colors' => '#9a9488', 'fontFamily' => 'IBM Plex Mono, monospace']],
                 'axisBorder' => ['show' => false],
                 'axisTicks' => ['show' => false],
@@ -60,7 +60,9 @@ class ProjectionsGrowthChart extends ApexChartWidget
 
     protected function extraJsOptions(): ?RawJs
     {
-        return RawJs::make(<<<'JS'
+        $jsLocale = app()->getLocale() === 'nl' ? 'nl-NL' : 'en-US';
+
+        return RawJs::make(<<<JS
         {
             yaxis: {
                 labels: {
@@ -72,7 +74,7 @@ class ProjectionsGrowthChart extends ApexChartWidget
             tooltip: {
                 y: {
                     formatter: function (value) {
-                        return new Intl.NumberFormat('nl-NL', {
+                        return new Intl.NumberFormat('{$jsLocale}', {
                             style: 'currency', currency: 'EUR', maximumFractionDigits: 0,
                         }).format(value);
                     },

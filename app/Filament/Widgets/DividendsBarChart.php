@@ -13,7 +13,7 @@ class DividendsBarChart extends ApexChartWidget
 
     protected function getHeading(): ?string
     {
-        return 'Verwacht dividend per maand';
+        return __('dividends.chart.heading');
     }
 
     protected function getOptions(): array
@@ -31,8 +31,8 @@ class DividendsBarChart extends ApexChartWidget
                 'fontFamily' => 'IBM Plex Mono, monospace',
             ],
             'series' => [
-                ['name' => 'Bevestigd', 'data' => $this->bucket($confirmed, $months)],
-                ['name' => 'Verwacht', 'data' => $this->bucket($events, $months)],
+                ['name' => __('dividends.chart.confirmed'), 'data' => $this->bucket($confirmed, $months)],
+                ['name' => __('dividends.chart.expected'), 'data' => $this->bucket($events, $months)],
             ],
             'xaxis' => [
                 'categories' => $months->map(fn (string $month): string => substr($month, 5).'/'.substr($month, 2, 2))->all(),
@@ -53,12 +53,14 @@ class DividendsBarChart extends ApexChartWidget
 
     protected function extraJsOptions(): ?RawJs
     {
-        return RawJs::make(<<<'JS'
+        $jsLocale = app()->getLocale() === 'nl' ? 'nl-NL' : 'en-US';
+
+        return RawJs::make(<<<JS
         {
             tooltip: {
                 y: {
                     formatter: function (value) {
-                        return new Intl.NumberFormat('nl-NL', {
+                        return new Intl.NumberFormat('{$jsLocale}', {
                             style: 'currency', currency: 'EUR', maximumFractionDigits: 0,
                         }).format(value);
                     },

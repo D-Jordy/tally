@@ -12,9 +12,12 @@ class Portfolio extends Page
 {
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedChartPie;
 
-    protected static ?string $navigationLabel = 'Portfolio';
-
     protected static ?int $navigationSort = 1;
+
+    public static function getNavigationLabel(): string
+    {
+        return __('portfolio.nav');
+    }
 
     protected string $view = 'filament.pages.portfolio';
 
@@ -41,7 +44,7 @@ class Portfolio extends Page
 
     public function getTitle(): string
     {
-        return 'Portfolio';
+        return __('portfolio.title');
     }
 
     public function hasPositions(): bool

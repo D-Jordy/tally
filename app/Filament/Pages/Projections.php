@@ -11,9 +11,12 @@ class Projections extends Page
 {
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedArrowTrendingUp;
 
-    protected static ?string $navigationLabel = 'Projecties';
-
     protected static ?int $navigationSort = 3;
+
+    public static function getNavigationLabel(): string
+    {
+        return __('projections.nav');
+    }
 
     protected string $view = 'filament.pages.projections';
 
@@ -50,7 +53,7 @@ class Projections extends Page
 
     public function getTitle(): string
     {
-        return 'Projecties';
+        return __('projections.title');
     }
 
     private function recompute(): void

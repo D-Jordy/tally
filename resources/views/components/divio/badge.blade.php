@@ -4,8 +4,8 @@
 
 @php
     [$bg, $color, $text] = match ($type) {
-        'estimate' => ['#efe9dc', '#a89c86', 'ESTIMATE'],
-        default => ['#e6efe6', '#2f7d52', 'CONFIRMED'],
+        'estimate' => ['#efe9dc', '#a89c86', __('dividends.badge.estimate')],
+        default => ['#e6efe6', '#2f7d52', __('dividends.badge.confirmed')],
     };
 @endphp
 

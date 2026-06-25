@@ -11,9 +11,12 @@ class Dividends extends Page
 {
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBanknotes;
 
-    protected static ?string $navigationLabel = 'Dividenden';
-
     protected static ?int $navigationSort = 2;
+
+    public static function getNavigationLabel(): string
+    {
+        return __('dividends.nav');
+    }
 
     protected string $view = 'filament.pages.dividends';
 
@@ -37,6 +40,6 @@ class Dividends extends Page
 
     public function getTitle(): string
     {
-        return 'Inkomende dividenden';
+        return __('dividends.title');
     }
 }

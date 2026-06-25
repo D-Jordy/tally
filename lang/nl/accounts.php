@@ -1,6 +1,10 @@
 <?php
 
 return [
+    'nav' => 'Rekeningen',
+    'model' => 'rekening',
+    'model_plural' => 'rekeningen',
+
     'fields' => [
         'name' => 'Naam',
         'broker' => 'Broker',
