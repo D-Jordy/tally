@@ -11,24 +11,12 @@ class PortfolioValueChart extends ApexChartWidget
 {
     protected static ?string $chartId = 'portfolioValueChart';
 
-    public ?string $filter = 'ALL';
+    // Range is driven by the page's underlined toggle, passed in via :key.
+    public string $range = 'ALL';
 
     protected function getHeading(): ?string
     {
         return 'Portefeuillewaarde';
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    protected function getFilters(): ?array
-    {
-        return [
-            '1M' => '1M',
-            '6M' => '6M',
-            '1Y' => '1J',
-            'ALL' => 'ALL',
-        ];
     }
 
     protected function getOptions(): array
@@ -102,7 +90,7 @@ class PortfolioValueChart extends ApexChartWidget
      */
     private function window(Collection $history): Collection
     {
-        $cutoff = match ($this->filter) {
+        $cutoff = match ($this->range) {
             '1M' => now()->subMonth(),
             '6M' => now()->subMonths(6),
             '1Y' => now()->subYear(),

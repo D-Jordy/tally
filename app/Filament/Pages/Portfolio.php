@@ -29,6 +29,8 @@ class Portfolio extends Page
     /** @var array<int, array<string, mixed>> */
     public array $positions = [];
 
+    public string $range = 'ALL';
+
     public function mount(ComputePortfolio $compute): void
     {
         ['positions' => $positions, 'summary' => $summary] = $compute->forUser(auth()->user());

@@ -36,8 +36,24 @@
         <x-divio.kpi label="Kosten" :value="$eur($summary['total_fees_eur'])" valueColor="var(--divio-negative,#c0392b)" />
     </div>
 
-    {{-- Value chart --}}
-    @livewire(\App\Filament\Widgets\PortfolioValueChart::class)
+    {{-- Range toggle: underlined text links, not pills --}}
+    <div style="display:flex;justify-content:flex-end;gap:16px;margin-bottom:-8px;">
+        @foreach (['1M' => '1M', '6M' => '6M', '1Y' => '1J', 'ALL' => 'ALL'] as $value => $label)
+            @php $active = $this->range === $value; @endphp
+            <button
+                type="button"
+                wire:click="$set('range', '{{ $value }}')"
+                style="font-family:'IBM Plex Mono',monospace;font-size:12px;padding:2px 0;background:none;border:none;cursor:pointer;color:{{ $active ? 'var(--divio-ink,#1a1a1a)' : 'var(--divio-muted-nav,#8a8474)' }};border-bottom:2px solid {{ $active ? 'var(--divio-ink,#1a1a1a)' : 'transparent' }};"
+            >{{ $label }}</button>
+        @endforeach
+    </div>
+
+    {{-- Value chart (re-mounts on range change via :key) --}}
+    @livewire(
+        \App\Filament\Widgets\PortfolioValueChart::class,
+        ['range' => $this->range],
+        key('pv-'.$this->range)
+    )
 
     {{-- Positions --}}
     @if ($this->hasPositions())
