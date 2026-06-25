@@ -43,6 +43,27 @@ class ComputePortfolioHistoryTest extends TestCase
         ]);
     }
 
+    private function sell(Account $account, Instrument $instrument, float $qty, string $date, string $currency = 'EUR'): void
+    {
+        Transaction::create([
+            'account_id' => $account->id,
+            'instrument_id' => $instrument->id,
+            'executed_at' => $date.' 10:00:00',
+            'type' => 'sell',
+            'quantity' => $qty,
+            'price' => 100,
+            'price_currency' => $currency,
+            'fee' => 0,
+            'trade_currency' => $currency,
+            'fx_rate_to_eur' => $currency === 'EUR' ? null : 0.9,
+            'local_value' => $qty * 100,
+            'value_eur' => $qty * 100,
+            'total_eur' => $qty * 100,
+            'source' => 'import',
+            'external_id' => 'sell-'.uniqid(),
+        ]);
+    }
+
     private function price(Instrument $instrument, float $close, string $date, string $currency = 'EUR'): void
     {
         PriceHistory::create(['instrument_id' => $instrument->id, 'date' => $date, 'close' => $close, 'currency' => $currency]);
@@ -98,6 +119,25 @@ class ComputePortfolioHistoryTest extends TestCase
 
         // 10 * 100 * 0.90 = 900, FX carried forward from 2024-01-01.
         $this->assertSame(900.0, (float) $last['total_value_eur']);
+    }
+
+    public function test_overselling_then_rebuying_does_not_leave_a_phantom_share(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $instrument = Instrument::factory()->create();
+
+        // Buy 2, sell 3 (briefly short), buy 1 back → net 0, no phantom share.
+        $this->buy($account, $instrument, 2, '2024-01-02');
+        $this->sell($account, $instrument, 3, '2024-02-01');
+        $this->buy($account, $instrument, 1, '2024-03-01');
+        $this->price($instrument, 100, '2024-01-02');
+        $this->price($instrument, 100, '2024-06-30');
+
+        $series = $this->history($user);
+        $last = end($series);
+
+        $this->assertSame(0.0, (float) $last['total_value_eur']);
     }
 
     public function test_dividends_and_fees_accumulate_over_time(): void

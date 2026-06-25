@@ -115,9 +115,13 @@ class ComputePortfolioHistory
                 $txns = $txnArrays[$instrId] ?? [];
                 while ($txnPtrs[$instrId] < count($txns) && $txns[$txnPtrs[$instrId]][0] <= $date) {
                     [, $type, $qty] = $txns[$txnPtrs[$instrId]];
+                    // Let sells go negative (track shorts) instead of clamping at 0 —
+                    // clamping drops the short, so a later buy leaves a phantom share and
+                    // overvalues the portfolio vs ComputePortfolio. The value loop below
+                    // skips qty <= 0, so shorts simply hold no positive market value.
                     $currentQtys[$instrId] = $type === 'buy'
                         ? $currentQtys[$instrId] + $qty
-                        : max(0.0, $currentQtys[$instrId] - $qty);
+                        : $currentQtys[$instrId] - $qty;
                     $txnPtrs[$instrId]++;
                 }
             }
