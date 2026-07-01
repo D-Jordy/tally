@@ -14,8 +14,12 @@ permissions:
   packages: write
 
 jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+
   build:
     name: Build and push image
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
