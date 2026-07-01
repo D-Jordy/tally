@@ -40,11 +40,11 @@ class ComputeIncomingDividends
         $accountIds = $user->accounts()->pluck('id');
 
         // Resolve current open positions: [instrument_id => quantity].
-        $positions       = $this->portfolio->forUser($user)['positions'];
+        $positions = $this->portfolio->forUser($user)['positions'];
         $qtyByInstrument = collect($positions)
-            ->filter(fn($p) => ($p['quantity'] ?? 0) > 0)
+            ->filter(fn ($p) => ($p['quantity'] ?? 0) > 0)
             ->keyBy('instrument_id')
-            ->map(fn($p) => (float) $p['quantity']);
+            ->map(fn ($p) => (float) $p['quantity']);
 
         if ($qtyByInstrument->isEmpty()) {
             return $this->emptyResult($accountIds);
@@ -60,7 +60,7 @@ class ComputeIncomingDividends
             ->groupBy('instrument_id');
 
         // Separate confirmed upcoming rows per instrument (stored by DividendSyncService).
-        $today   = now()->startOfDay();
+        $today = now()->startOfDay();
         $horizon = now()->addMonths(12)->endOfDay();
 
         $confirmedByInstrument = Dividend::whereIn('instrument_id', $instrumentIds)
@@ -71,35 +71,35 @@ class ComputeIncomingDividends
             ->groupBy('instrument_id');
 
         // Build confirmed event list.
-        $confirmed  = [];
+        $confirmed = [];
         $currencies = collect();
 
         foreach ($confirmedByInstrument as $instrumentId => $rows) {
             $qty = $qtyByInstrument->get($instrumentId);
-            if (!$qty) {
+            if (! $qty) {
                 continue;
             }
 
             foreach ($rows as $row) {
                 $confirmed[] = [
-                    'instrument_id'    => $row->instrument->id,
-                    'name'             => $row->instrument->name,
-                    'yahoo_symbol'     => $row->instrument->yahoo_symbol,
-                    'ex_date'          => $row->ex_date->toDateString(),
-                    'pay_date'         => $row->pay_date?->toDateString(),
+                    'instrument_id' => $row->instrument->id,
+                    'name' => $row->instrument->name,
+                    'yahoo_symbol' => $row->instrument->yahoo_symbol,
+                    'ex_date' => $row->ex_date->toDateString(),
+                    'pay_date' => $row->pay_date?->toDateString(),
                     'amount_per_share' => round((float) $row->amount_per_share, 8),
-                    'currency'         => $row->currency,
-                    'quantity'         => round($qty, 4),
-                    'expected_eur'     => null,
-                    'projected'        => false,
-                    'confirmed'        => true,
+                    'currency' => $row->currency,
+                    'quantity' => round($qty, 4),
+                    'expected_eur' => null,
+                    'projected' => false,
+                    'confirmed' => true,
                 ];
 
                 $currencies->push($row->currency);
             }
         }
 
-        usort($confirmed, fn($a, $b) => $a['ex_date'] <=> $b['ex_date']);
+        usort($confirmed, fn ($a, $b) => $a['ex_date'] <=> $b['ex_date']);
 
         // Build projected event list (cadence-based), skipping confirmed windows.
         $events = [];
@@ -107,22 +107,22 @@ class ComputeIncomingDividends
         foreach ($qtyByInstrument as $instrumentId => $qty) {
             $history = $allDividends->get($instrumentId);
 
-            if (!$history || $history->count() < 2) {
+            if (! $history || $history->count() < 2) {
                 continue;
             }
 
             $confirmedDates = collect($confirmedByInstrument->get($instrumentId) ?? [])
-                ->map(fn($r) => $r->ex_date->toDateString());
+                ->map(fn ($r) => $r->ex_date->toDateString());
 
             $projected = $this->projectEvents($history, $qty, $today, $horizon, $confirmedDates);
-            $events    = array_merge($events, $projected);
+            $events = array_merge($events, $projected);
 
-            if (!empty($projected)) {
+            if (! empty($projected)) {
                 $currencies->push($projected[0]['currency']);
             }
         }
 
-        usort($events, fn($a, $b) => $a['ex_date'] <=> $b['ex_date']);
+        usort($events, fn ($a, $b) => $a['ex_date'] <=> $b['ex_date']);
 
         // Pre-load trailing cash movements so we can include their currencies in the FX lookup.
         $trailingRows = $this->rawTrailingRows($accountIds);
@@ -133,7 +133,7 @@ class ComputeIncomingDividends
             ->merge(collect($confirmed)->pluck('currency'))
             ->merge($trailingRows->pluck('currency'))
             ->unique()
-            ->filter(fn($c) => $c !== 'EUR')
+            ->filter(fn ($c) => $c !== 'EUR')
             ->values();
         $fxRates = $this->latestFxRatesFor($uniqueCurrencies);
 
@@ -178,10 +178,10 @@ class ComputeIncomingDividends
         ));
 
         $summary = [
-            'next_12m_total_eur'        => round($next12mTotal, 2),
+            'next_12m_total_eur' => round($next12mTotal, 2),
             'trailing_12m_received_eur' => round($trailing, 2),
-            'instrument_count'          => count($allInstrumentIds),
-            'confirmed_count'           => count($confirmed),
+            'instrument_count' => count($allInstrumentIds),
+            'confirmed_count' => count($confirmed),
         ];
 
         return compact('confirmed', 'events', 'monthly', 'summary');
@@ -203,14 +203,14 @@ class ComputeIncomingDividends
         Carbon $horizon,
         Collection $confirmedDates,
     ): array {
-        $exDates = $history->pluck('ex_date')->map(fn($d) => Carbon::parse($d))->sortBy(fn($d) => $d->timestamp)->values();
+        $exDates = $history->pluck('ex_date')->map(fn ($d) => Carbon::parse($d))->sortBy(fn ($d) => $d->timestamp)->values();
 
         if ($exDates->count() < 2) {
             return [];
         }
 
         $recent = $exDates->slice(-8)->values();
-        $gaps   = [];
+        $gaps = [];
 
         for ($i = 1; $i < $recent->count(); $i++) {
             $gaps[] = $recent[$i - 1]->diffInDays($recent[$i]);
@@ -226,8 +226,13 @@ class ComputeIncomingDividends
         $timesPerYear = $this->gapToFrequency($medianGap);
         $intervalDays = (int) round(365 / $timesPerYear);
 
-        $latest   = $history->sortBy('ex_date')->last();
-        $amount   = (float) $latest->amount_per_share;
+        $latest = $history->sortBy('ex_date')->last();
+        // Use the median of recent amounts, not the latest: a one-off special
+        // dividend is an outlier that would otherwise be projected forward.
+        $amount = (float) $history->sortBy('ex_date')->slice(-8)
+            ->pluck('amount_per_share')
+            ->map(fn ($value) => (float) $value)
+            ->median();
         $currency = $latest->currency;
         $instrument = $latest->instrument;
 
@@ -252,17 +257,17 @@ class ComputeIncomingDividends
                 }
 
                 $events[] = [
-                    'instrument_id'    => $instrument->id,
-                    'name'             => $instrument->name,
-                    'yahoo_symbol'     => $instrument->yahoo_symbol,
-                    'ex_date'          => $cursor->toDateString(),
-                    'pay_date'         => null,
+                    'instrument_id' => $instrument->id,
+                    'name' => $instrument->name,
+                    'yahoo_symbol' => $instrument->yahoo_symbol,
+                    'ex_date' => $cursor->toDateString(),
+                    'pay_date' => null,
                     'amount_per_share' => round($amount, 8),
-                    'currency'         => $currency,
-                    'quantity'         => round($qty, 4),
-                    'expected_eur'     => null,
-                    'projected'        => true,
-                    'confirmed'        => false,
+                    'currency' => $currency,
+                    'quantity' => round($qty, 4),
+                    'expected_eur' => null,
+                    'projected' => true,
+                    'confirmed' => false,
                 ];
             }
         }
@@ -304,7 +309,7 @@ class ComputeIncomingDividends
 
         $fx = $fxRates->get($currency);
 
-        if (!$fx) {
+        if (! $fx) {
             return null;
         }
 
@@ -326,7 +331,7 @@ class ComputeIncomingDividends
         return FxRate::query()
             ->joinSub($latest, 'latest', function ($join) {
                 $join->on('fx_rates.currency', '=', 'latest.currency')
-                     ->on('fx_rates.date', '=', 'latest.max_date');
+                    ->on('fx_rates.date', '=', 'latest.max_date');
             })
             ->whereIn('fx_rates.currency', $currencies)
             ->select('fx_rates.currency', 'fx_rates.rate_to_eur')
@@ -354,7 +359,7 @@ class ComputeIncomingDividends
         }
 
         return array_map(
-            fn($month, $total) => ['month' => $month, 'expected_eur' => round($total, 2)],
+            fn ($month, $total) => ['month' => $month, 'expected_eur' => round($total, 2)],
             array_keys($buckets),
             array_values($buckets),
         );
@@ -393,22 +398,22 @@ class ComputeIncomingDividends
 
     private function emptyResult(mixed $accountIds): array
     {
-        $trailingRows       = $this->rawTrailingRows($accountIds);
-        $trailingCurrencies = $trailingRows->pluck('currency')->unique()->filter(fn($c) => $c !== 'EUR')->values();
-        $fxRates            = $this->latestFxRatesFor($trailingCurrencies);
+        $trailingRows = $this->rawTrailingRows($accountIds);
+        $trailingCurrencies = $trailingRows->pluck('currency')->unique()->filter(fn ($c) => $c !== 'EUR')->values();
+        $fxRates = $this->latestFxRatesFor($trailingCurrencies);
 
         return [
             'confirmed' => [],
-            'events'    => [],
-            'monthly'   => array_map(
-                fn($i) => ['month' => now()->addMonths($i)->format('Y-m'), 'expected_eur' => 0.0],
+            'events' => [],
+            'monthly' => array_map(
+                fn ($i) => ['month' => now()->addMonths($i)->format('Y-m'), 'expected_eur' => 0.0],
                 range(0, 11)
             ),
             'summary' => [
-                'next_12m_total_eur'        => 0.0,
+                'next_12m_total_eur' => 0.0,
                 'trailing_12m_received_eur' => round($this->trailingReceivedEur($trailingRows, $fxRates), 2),
-                'instrument_count'          => 0,
-                'confirmed_count'           => 0,
+                'instrument_count' => 0,
+                'confirmed_count' => 0,
             ],
         ];
     }

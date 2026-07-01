@@ -93,6 +93,35 @@ class ComputeIncomingDividendsTest extends TestCase
         $this->assertLessThanOrEqual(230.00, $result['summary']['next_12m_total_eur']);
     }
 
+    public function test_projections_ignore_a_one_off_special_dividend(): void
+    {
+        $instrument = Instrument::factory()->create(['yahoo_symbol' => 'SAB.MC', 'quote_currency' => 'EUR']);
+        $this->seedQuarterlyDividends($instrument->id, 0.50, 'EUR');
+
+        // A large special dividend as the most recent row — must not become the basis.
+        Dividend::factory()->create([
+            'instrument_id' => $instrument->id,
+            'ex_date' => now()->subDays(30)->toDateString(),
+            'amount_per_share' => 5.00,
+            'currency' => 'EUR',
+        ]);
+
+        $user = User::factory()->create();
+        $action = $this->makeAction([
+            ['instrument_id' => $instrument->id, 'quantity' => 100],
+        ]);
+
+        $result = $action->forUser($user);
+
+        $this->assertNotEmpty($result['events']);
+
+        // Median amount is 0.50, so every projected event is 0.50 × 100 = 50 EUR,
+        // never the 5.00 special (which would be 500 EUR).
+        foreach ($result['events'] as $event) {
+            $this->assertEqualsWithDelta(50.00, $event['expected_eur'], 0.01);
+        }
+    }
+
     public function test_expected_eur_calculation(): void
     {
         $instrument = Instrument::factory()->create(['yahoo_symbol' => 'TEST', 'quote_currency' => 'USD']);

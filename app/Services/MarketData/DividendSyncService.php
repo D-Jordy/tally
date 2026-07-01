@@ -20,7 +20,7 @@ class DividendSyncService
      */
     public function syncInstrument(Instrument $instrument): int
     {
-        if (!$instrument->yahoo_symbol) {
+        if (! $instrument->yahoo_symbol) {
             return 0;
         }
 
@@ -43,13 +43,13 @@ class DividendSyncService
             );
 
             $records[] = [
-                'instrument_id'    => $instrument->id,
-                'ex_date'          => $row['ex_date'],
-                'pay_date'         => null,
+                'instrument_id' => $instrument->id,
+                'ex_date' => $row['ex_date'],
+                'pay_date' => null,
                 'amount_per_share' => $amount,
-                'currency'         => $currency,
-                'created_at'       => $now,
-                'updated_at'       => $now,
+                'currency' => $currency,
+                'created_at' => $now,
+                'updated_at' => $now,
             ];
         }
 
@@ -74,32 +74,38 @@ class DividendSyncService
     {
         $upcoming = $this->yahoo->upcomingDividend($instrument->yahoo_symbol);
 
-        if (!$upcoming) {
+        if (! $upcoming) {
             return;
         }
 
-        // Amount from most recent historical row (already normalised at ingest time).
-        $latest = Dividend::where('instrument_id', $instrument->id)
+        // Amount = median of recent historical rows (already normalised at ingest
+        // time). Median, not latest, so a one-off special dividend doesn't become
+        // the projected upcoming amount.
+        $recent = Dividend::where('instrument_id', $instrument->id)
             ->where('confirmed', false)
             ->orderByDesc('ex_date')
-            ->first();
+            ->limit(8)
+            ->get(['amount_per_share', 'currency']);
 
-        if (!$latest) {
+        if ($recent->isEmpty()) {
             return;
         }
+
+        $amount = $recent->pluck('amount_per_share')->map(fn ($value) => (float) $value)->median();
+        $currency = $recent->first()->currency;
 
         $now = now();
 
         DB::table('dividends')->upsert(
             [[
-                'instrument_id'    => $instrument->id,
-                'ex_date'          => $upcoming['ex_date'],
-                'pay_date'         => $upcoming['pay_date'],
-                'amount_per_share' => $latest->amount_per_share,
-                'currency'         => $latest->currency,
-                'confirmed'        => true,
-                'created_at'       => $now,
-                'updated_at'       => $now,
+                'instrument_id' => $instrument->id,
+                'ex_date' => $upcoming['ex_date'],
+                'pay_date' => $upcoming['pay_date'],
+                'amount_per_share' => $amount,
+                'currency' => $currency,
+                'confirmed' => true,
+                'created_at' => $now,
+                'updated_at' => $now,
             ]],
             ['instrument_id', 'ex_date'],
             ['pay_date', 'amount_per_share', 'currency', 'confirmed', 'updated_at']

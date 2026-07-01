@@ -101,7 +101,7 @@ class DividendSyncTest extends TestCase
         $this->assertDatabaseCount('dividends', 0);
     }
 
-    public function test_confirmed_upcoming_row_is_upserted_with_latest_historical_amount(): void
+    public function test_confirmed_upcoming_row_is_upserted_with_median_historical_amount(): void
     {
         $instrument = Instrument::factory()->create(['yahoo_symbol' => 'AAPL']);
 
@@ -127,8 +127,40 @@ class DividendSyncTest extends TestCase
             'instrument_id' => $instrument->id,
             'ex_date' => $futureExDate,
             'pay_date' => $futurePayDate,
-            'amount_per_share' => '0.25000000', // latest historical amount
+            'amount_per_share' => '0.24500000', // median of 0.24 and 0.25
             'currency' => 'USD',
+            'confirmed' => true,
+        ]);
+    }
+
+    public function test_confirmed_upcoming_ignores_a_one_off_special_dividend(): void
+    {
+        $instrument = Instrument::factory()->create(['yahoo_symbol' => 'SAB.MC']);
+
+        $futureExDate = now()->addDays(20)->toDateString();
+        $futurePayDate = now()->addDays(27)->toDateString();
+
+        // Four regular 0.03 dividends and one large special as the latest row.
+        $this->mock(YahooFinanceAdapter::class, function ($mock) use ($futureExDate, $futurePayDate) {
+            $mock->shouldReceive('dividends')
+                ->andReturn([
+                    ['ex_date' => '2023-05-10', 'amount' => 0.03, 'currency' => 'EUR'],
+                    ['ex_date' => '2023-11-10', 'amount' => 0.03, 'currency' => 'EUR'],
+                    ['ex_date' => '2024-05-10', 'amount' => 0.03, 'currency' => 'EUR'],
+                    ['ex_date' => '2024-11-10', 'amount' => 0.03, 'currency' => 'EUR'],
+                    ['ex_date' => '2025-01-15', 'amount' => 0.50, 'currency' => 'EUR'], // special
+                ]);
+            $mock->shouldReceive('upcomingDividend')
+                ->andReturn(['ex_date' => $futureExDate, 'pay_date' => $futurePayDate]);
+        });
+
+        app(DividendSyncService::class)->syncInstrument($instrument);
+
+        // Median of {0.03,0.03,0.03,0.03,0.50} = 0.03 — the special is ignored.
+        $this->assertDatabaseHas('dividends', [
+            'instrument_id' => $instrument->id,
+            'ex_date' => $futureExDate,
+            'amount_per_share' => '0.03000000',
             'confirmed' => true,
         ]);
     }
