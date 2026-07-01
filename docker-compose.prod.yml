@@ -1,16 +1,47 @@
 # Production overlay — used WITH docker-compose.yml (not the dev override).
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Runs the pre-built GHCR image (no build on the server). Pin a version with
+# TALLY_IMAGE_TAG in .env; defaults to latest.
+#
 # No host ports: Caddy (separate stack) reaches the web container over the shared
 # external "web" network and terminates TLS for tally.d-jordy.nl.
+#
+# The app container has the code baked in; nginx serves the static public/ files
+# from a shared volume that the app's entrypoint refreshes on every boot.
 services:
+  app:
+    image: ghcr.io/d-jordy/tally:${TALLY_IMAGE_TAG:-latest}
+    volumes: !override
+      - storage_data:/var/www/html/storage
+      - public_assets:/srv/public
+
   web:
+    image: nginx:1.26-alpine
     ports: !reset []
+    volumes: !override
+      - public_assets:/var/www/html/public:ro
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     networks:
       default: {}
       web:
         aliases:
           - tally-web
 
+  worker:
+    image: ghcr.io/d-jordy/tally:${TALLY_IMAGE_TAG:-latest}
+    volumes: !override
+      - storage_data:/var/www/html/storage
+
+  scheduler:
+    image: ghcr.io/d-jordy/tally:${TALLY_IMAGE_TAG:-latest}
+    volumes: !override
+      - storage_data:/var/www/html/storage
+
 networks:
   web:
     external: true
+
+volumes:
+  storage_data:
+  public_assets:
