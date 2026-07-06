@@ -7,6 +7,8 @@ use App\Models\FxRate;
 use App\Models\PriceHistory;
 use App\Models\Transaction;
 use App\Models\User;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 
 class ComputePortfolioHistory
 {
@@ -26,6 +28,23 @@ class ComputePortfolioHistory
             return [];
         }
 
+        // The forward-scan below is pure over (prices, fx, txns, cash). Cache the result and
+        // key it on a cheap signature of those inputs, so a market-data sync or an import
+        // invalidates it automatically — no event wiring.
+        // ponytail: signature costs ~7 indexed aggregates per call; fine vs. the full scan.
+        return Cache::remember(
+            $this->cacheKey($user, $accountIds, $instrumentIds),
+            now()->addDay(),
+            fn (): array => $this->compute($accountIds, $instrumentIds),
+        );
+    }
+
+    /**
+     * @param  Collection<int, int>  $accountIds
+     * @param  array<int, int>  $instrumentIds
+     */
+    private function compute(Collection $accountIds, array $instrumentIds): array
+    {
         $allDates = PriceHistory::whereIn('instrument_id', $instrumentIds)
             ->distinct()
             ->orderBy('date')
@@ -194,5 +213,24 @@ class ComputePortfolioHistory
         }
 
         return $result;
+    }
+
+    /**
+     * @param  Collection<int, int>  $accountIds
+     * @param  array<int, int>  $instrumentIds
+     */
+    private function cacheKey(User $user, Collection $accountIds, array $instrumentIds): string
+    {
+        $signature = implode('|', [
+            PriceHistory::whereIn('instrument_id', $instrumentIds)->max('date'),
+            PriceHistory::whereIn('instrument_id', $instrumentIds)->count(),
+            FxRate::max('date'),
+            Transaction::whereIn('account_id', $accountIds)->max('updated_at'),
+            Transaction::whereIn('account_id', $accountIds)->count(),
+            CashMovement::whereIn('account_id', $accountIds)->max('updated_at'),
+            CashMovement::whereIn('account_id', $accountIds)->count(),
+        ]);
+
+        return "portfolio_history:{$user->id}:".md5($signature);
     }
 }

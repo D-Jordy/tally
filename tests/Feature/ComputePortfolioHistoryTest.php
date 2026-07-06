@@ -158,4 +158,25 @@ class ComputePortfolioHistoryTest extends TestCase
         $this->assertSame(30.0, (float) $last['cumulative_dividends_eur']);
         $this->assertSame(-5.0, (float) $last['cumulative_fees_eur']);
     }
+
+    public function test_result_is_cached_and_invalidated_when_underlying_data_changes(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $instrument = Instrument::factory()->create();
+
+        $this->buy($account, $instrument, 10, '2024-01-02');
+        $this->price($instrument, 100, '2024-01-02');
+        $this->price($instrument, 120, '2024-06-30');
+
+        $first = $this->history($user);
+        $this->assertSame($first, $this->history($user)); // cache hit → identical
+
+        // A new price row changes the signature → recompute reflects it.
+        $this->price($instrument, 150, '2024-07-01');
+        $updated = $this->history($user);
+
+        $this->assertCount(count($first) + 1, $updated);
+        $this->assertSame(1500.0, (float) end($updated)['total_value_eur']);
+    }
 }
