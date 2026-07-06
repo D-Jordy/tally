@@ -15,6 +15,11 @@ return [
         'invested' => 'Invested',
         'dividends' => 'Dividends',
         'pl' => 'P/L',
+        'mode' => [
+            'value' => 'Value',
+            'pl' => 'P/L',
+            'roi' => 'Return',
+        ],
     ],
 
     'kpi' => [

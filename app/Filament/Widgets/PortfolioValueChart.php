@@ -11,12 +11,16 @@ class PortfolioValueChart extends ApexChartWidget
 {
     protected static ?string $chartId = 'portfolioValueChart';
 
-    // Range is driven by the page's underlined toggle, passed in via :key.
+    // Range and mode are driven by the page's underlined toggles, passed in via :key.
     public string $range = '1Y';
+
+    public string $mode = 'value';
 
     protected function getHeading(): ?string
     {
-        return __('portfolio.chart.heading');
+        return $this->mode === 'value'
+            ? __('portfolio.chart.heading')
+            : __('portfolio.chart.mode.'.$this->mode);
     }
 
     protected function getOptions(): array
@@ -24,6 +28,10 @@ class PortfolioValueChart extends ApexChartWidget
         $history = $this->window(
             collect(app(ComputePortfolioHistory::class)->forUser(auth()->user()))
         );
+
+        if ($this->mode !== 'value') {
+            return $this->derivedOptions($history);
+        }
 
         return [
             'chart' => [
@@ -71,10 +79,82 @@ class PortfolioValueChart extends ApexChartWidget
         ];
     }
 
+    /**
+     * P/L (€) or RoI (%) as a single zero-crossing area — makes the gap between
+     * value and invested explicit instead of two lines you eyeball apart.
+     *
+     * @param  Collection<int, array<string, mixed>>  $history
+     * @return array<string, mixed>
+     */
+    private function derivedOptions(Collection $history): array
+    {
+        $isPl = $this->mode === 'pl';
+
+        $data = $history->map(function (array $point) use ($isPl): float {
+            $pl = (float) $point['total_value_eur'] - (float) $point['invested_eur'];
+
+            if ($isPl) {
+                return round($pl, 2);
+            }
+
+            $invested = (float) $point['invested_eur'];
+
+            return $invested > 0 ? round($pl / $invested * 100, 2) : 0.0;
+        })->all();
+
+        return [
+            'chart' => [
+                'type' => 'area',
+                'height' => 300,
+                'toolbar' => ['show' => false],
+                'fontFamily' => 'IBM Plex Mono, monospace',
+            ],
+            'series' => [
+                ['name' => __('portfolio.chart.mode.'.$this->mode), 'data' => $data],
+            ],
+            'xaxis' => [
+                'categories' => $history->pluck('date')->all(),
+                'type' => 'datetime',
+                'labels' => ['style' => ['colors' => '#9a9488', 'fontFamily' => 'IBM Plex Mono, monospace']],
+                'axisBorder' => ['show' => false],
+                'axisTicks' => ['show' => false],
+            ],
+            'yaxis' => [
+                'labels' => ['style' => ['colors' => '#9a9488', 'fontFamily' => 'IBM Plex Mono, monospace']],
+            ],
+            'colors' => ['#1a1a1a'],
+            'stroke' => ['curve' => 'smooth', 'width' => 2.5],
+            'legend' => ['show' => false],
+            'fill' => [
+                'type' => 'gradient',
+                'gradient' => ['shadeIntensity' => 1, 'opacityFrom' => 0.12, 'opacityTo' => 0, 'stops' => [0, 100]],
+            ],
+            'annotations' => [
+                'yaxis' => [['y' => 0, 'borderColor' => '#c4bfb3', 'strokeDashArray' => 4]],
+            ],
+            'grid' => ['borderColor' => '#ece9e0', 'strokeDashArray' => 0],
+            'dataLabels' => ['enabled' => false],
+        ];
+    }
+
     protected function extraJsOptions(): ?RawJs
     {
         $jsLocale = app()->getLocale() === 'nl' ? 'nl-NL' : 'en-US';
         $plLabel = __('portfolio.chart.pl');
+
+        // Single-series modes: built-in tooltip + matching y-axis formatter is plenty.
+        if ($this->mode !== 'value') {
+            $formatter = $this->mode === 'roi'
+                ? "function (value) { return value.toFixed(1) + '%'; }"
+                : "function (value) { return new Intl.NumberFormat('{$jsLocale}', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(value); }";
+
+            return RawJs::make(<<<JS
+            {
+                yaxis: { labels: { formatter: {$formatter} } },
+                tooltip: { y: { formatter: {$formatter} } },
+            }
+            JS);
+        }
 
         // The package injects this raw into a double-quoted x-data="..." attribute, so it must
         // contain zero double-quote chars (they'd close the attribute). HTML strings use
@@ -120,14 +200,20 @@ class PortfolioValueChart extends ApexChartWidget
                     });
                     var rows = '';
                     for (var s = 0; s < g.seriesNames.length; s++) {
+                        // Collapsed series have an empty data array → skip, else fmt() reads NaN.
+                        var value = g.series[s][i];
+                        if (value === undefined || value === null) { continue; }
                         rows += `<div style='display:flex;justify-content:space-between;gap:16px;'>`
                             + `<span style='color:` + g.colors[s] + `;'>` + g.seriesNames[s] + `</span>`
-                            + `<span style='font-variant-numeric:tabular-nums;'>` + fmt(g.series[s][i]) + `</span></div>`;
+                            + `<span style='font-variant-numeric:tabular-nums;'>` + fmt(value) + `</span></div>`;
                     }
-                    var pl = g.series[0][i] - g.series[1][i];
-                    rows += `<div style='display:flex;justify-content:space-between;gap:16px;border-top:1px solid #ece9e0;margin-top:4px;padding-top:4px;font-weight:600;'>`
-                        + `<span>{$plLabel}</span>`
-                        + `<span style='font-variant-numeric:tabular-nums;color:` + (pl >= 0 ? `#2f7d52` : `#c0392b`) + `;'>` + fmt(pl) + `</span></div>`;
+                    // P/L needs both value and invested visible.
+                    if (g.series[0][i] != null && g.series[1][i] != null) {
+                        var pl = g.series[0][i] - g.series[1][i];
+                        rows += `<div style='display:flex;justify-content:space-between;gap:16px;border-top:1px solid #ece9e0;margin-top:4px;padding-top:4px;font-weight:600;'>`
+                            + `<span>{$plLabel}</span>`
+                            + `<span style='font-variant-numeric:tabular-nums;color:` + (pl >= 0 ? `#2f7d52` : `#c0392b`) + `;'>` + fmt(pl) + `</span></div>`;
+                    }
                     return `<div style='padding:8px 12px;font-family:IBM Plex Mono,monospace;font-size:12px;'>`
                         + `<div style='color:#9a9488;margin-bottom:4px;'>` + date + `</div>` + rows + `</div>`;
                 },
