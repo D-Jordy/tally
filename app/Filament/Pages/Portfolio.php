@@ -38,6 +38,8 @@ class Portfolio extends Page
 
     public string $range = '1Y';
 
+    public string $mode = 'value';
+
     public function mount(ComputePortfolio $compute): void
     {
         ['positions' => $positions, 'summary' => $summary] = $compute->forUser(auth()->user());

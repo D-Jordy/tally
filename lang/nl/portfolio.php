@@ -15,6 +15,11 @@ return [
         'invested' => 'Ingelegd',
         'dividends' => 'Dividenden',
         'pl' => 'W/V',
+        'mode' => [
+            'value' => 'Waarde',
+            'pl' => 'W/V',
+            'roi' => 'Rendement',
+        ],
     ],
 
     'kpi' => [

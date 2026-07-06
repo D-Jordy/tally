@@ -37,31 +37,46 @@
         <x-divio.kpi :label="__('portfolio.kpi.fees')" :value="$eur($summary['total_fees_eur'])" valueColor="var(--divio-negative,#c0392b)" />
     </div>
 
-    {{-- Range toggle: underlined text links, not pills. Remembers last pick in localStorage. --}}
+    {{-- Toggles: mode (left) + range (right). Underlined text links, remembered in localStorage. --}}
+    @php
+        $toggle = fn (bool $active) => "font-family:'IBM Plex Mono',monospace;font-size:12px;padding:2px 0;background:none;border:none;cursor:pointer;color:".($active ? 'var(--divio-ink,#1a1a1a)' : 'var(--divio-muted-nav,#8a8474)').";border-bottom:2px solid ".($active ? 'var(--divio-ink,#1a1a1a)' : 'transparent').";";
+    @endphp
     <div
         x-data="{
             init() {
-                const saved = localStorage.getItem('tally.pv.range');
-                if (saved && saved !== '{{ $this->range }}') { $wire.set('range', saved); }
+                const range = localStorage.getItem('tally.pv.range');
+                if (range && range !== '{{ $this->range }}') { $wire.set('range', range); }
+                const mode = localStorage.getItem('tally.pv.mode');
+                if (mode && mode !== '{{ $this->mode }}') { $wire.set('mode', mode); }
             },
         }"
-        style="display:flex;justify-content:flex-end;gap:16px;margin-bottom:-8px;"
+        style="display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:-8px;"
     >
-        @foreach (['1M' => '1M', '6M' => '6M', '1Y' => '1J', 'ALL' => 'ALL'] as $value => $label)
-            @php $active = $this->range === $value; @endphp
-            <button
-                type="button"
-                x-on:click="localStorage.setItem('tally.pv.range', '{{ $value }}'); $wire.set('range', '{{ $value }}')"
-                style="font-family:'IBM Plex Mono',monospace;font-size:12px;padding:2px 0;background:none;border:none;cursor:pointer;color:{{ $active ? 'var(--divio-ink,#1a1a1a)' : 'var(--divio-muted-nav,#8a8474)' }};border-bottom:2px solid {{ $active ? 'var(--divio-ink,#1a1a1a)' : 'transparent' }};"
-            >{{ $label }}</button>
-        @endforeach
+        <div style="display:flex;gap:16px;">
+            @foreach (['value', 'pl', 'roi'] as $value)
+                <button
+                    type="button"
+                    x-on:click="localStorage.setItem('tally.pv.mode', '{{ $value }}'); $wire.set('mode', '{{ $value }}')"
+                    style="{{ $toggle($this->mode === $value) }}"
+                >{{ __('portfolio.chart.mode.'.$value) }}</button>
+            @endforeach
+        </div>
+        <div style="display:flex;gap:16px;">
+            @foreach (['1M' => '1M', '6M' => '6M', '1Y' => '1J', 'ALL' => 'ALL'] as $value => $label)
+                <button
+                    type="button"
+                    x-on:click="localStorage.setItem('tally.pv.range', '{{ $value }}'); $wire.set('range', '{{ $value }}')"
+                    style="{{ $toggle($this->range === $value) }}"
+                >{{ $label }}</button>
+            @endforeach
+        </div>
     </div>
 
-    {{-- Value chart (re-mounts on range change via :key) --}}
+    {{-- Chart (re-mounts on range/mode change via :key) --}}
     @livewire(
         \App\Filament\Widgets\PortfolioValueChart::class,
-        ['range' => $this->range],
-        key('pv-'.$this->range)
+        ['range' => $this->range, 'mode' => $this->mode],
+        key('pv-'.$this->range.'-'.$this->mode)
     )
 
     {{-- Positions --}}
