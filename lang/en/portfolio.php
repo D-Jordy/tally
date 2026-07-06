@@ -14,6 +14,7 @@ return [
         'value' => 'Value',
         'invested' => 'Invested',
         'dividends' => 'Dividends',
+        'pl' => 'P/L',
     ],
 
     'kpi' => [

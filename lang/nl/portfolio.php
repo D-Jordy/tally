@@ -14,6 +14,7 @@ return [
         'value' => 'Waarde',
         'invested' => 'Ingelegd',
         'dividends' => 'Dividenden',
+        'pl' => 'W/V',
     ],
 
     'kpi' => [

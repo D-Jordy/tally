@@ -37,13 +37,21 @@
         <x-divio.kpi :label="__('portfolio.kpi.fees')" :value="$eur($summary['total_fees_eur'])" valueColor="var(--divio-negative,#c0392b)" />
     </div>
 
-    {{-- Range toggle: underlined text links, not pills --}}
-    <div style="display:flex;justify-content:flex-end;gap:16px;margin-bottom:-8px;">
+    {{-- Range toggle: underlined text links, not pills. Remembers last pick in localStorage. --}}
+    <div
+        x-data="{
+            init() {
+                const saved = localStorage.getItem('tally.pv.range');
+                if (saved && saved !== '{{ $this->range }}') { $wire.set('range', saved); }
+            },
+        }"
+        style="display:flex;justify-content:flex-end;gap:16px;margin-bottom:-8px;"
+    >
         @foreach (['1M' => '1M', '6M' => '6M', '1Y' => '1J', 'ALL' => 'ALL'] as $value => $label)
             @php $active = $this->range === $value; @endphp
             <button
                 type="button"
-                wire:click="$set('range', '{{ $value }}')"
+                x-on:click="localStorage.setItem('tally.pv.range', '{{ $value }}'); $wire.set('range', '{{ $value }}')"
                 style="font-family:'IBM Plex Mono',monospace;font-size:12px;padding:2px 0;background:none;border:none;cursor:pointer;color:{{ $active ? 'var(--divio-ink,#1a1a1a)' : 'var(--divio-muted-nav,#8a8474)' }};border-bottom:2px solid {{ $active ? 'var(--divio-ink,#1a1a1a)' : 'transparent' }};"
             >{{ $label }}</button>
         @endforeach

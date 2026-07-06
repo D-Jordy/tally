@@ -74,9 +74,31 @@ class PortfolioValueChart extends ApexChartWidget
     protected function extraJsOptions(): ?RawJs
     {
         $jsLocale = app()->getLocale() === 'nl' ? 'nl-NL' : 'en-US';
+        $plLabel = __('portfolio.chart.pl');
 
+        // The package injects this raw into a double-quoted x-data="..." attribute, so it must
+        // contain zero double-quote chars (they'd close the attribute). HTML strings use
+        // backticks with single-quoted style attrs; no `$` template interpolation is used, so
+        // the PHP heredoc leaves the JS untouched — only {$jsLocale}/{$plLabel} interpolate.
         return RawJs::make(<<<JS
         {
+            chart: {
+                events: {
+                    // Persist which series the user toggled off, keyed in localStorage.
+                    legendClick: function (ctx, seriesIndex) {
+                        var hidden = JSON.parse(localStorage.getItem('tally.pv.hidden') || '[]');
+                        var name = ctx.w.globals.seriesNames[seriesIndex];
+                        var at = hidden.indexOf(name);
+                        if (at === -1) { hidden.push(name); } else { hidden.splice(at, 1); }
+                        localStorage.setItem('tally.pv.hidden', JSON.stringify(hidden));
+                    },
+                    // Re-hide them after every (re)mount — survives the range :key remount.
+                    mounted: function (ctx) {
+                        JSON.parse(localStorage.getItem('tally.pv.hidden') || '[]')
+                            .forEach(function (name) { ctx.hideSeries(name); });
+                    },
+                },
+            },
             yaxis: {
                 labels: {
                     formatter: function (value) {
@@ -85,13 +107,29 @@ class PortfolioValueChart extends ApexChartWidget
                 },
             },
             tooltip: {
-                x: { format: 'dd MMM yyyy' },
-                y: {
-                    formatter: function (value) {
+                custom: function (ctx) {
+                    var g = ctx.w.globals;
+                    var i = ctx.dataPointIndex;
+                    var fmt = function (value) {
                         return new Intl.NumberFormat('{$jsLocale}', {
                             style: 'currency', currency: 'EUR', maximumFractionDigits: 0,
                         }).format(value);
-                    },
+                    };
+                    var date = new Date(g.seriesX[0][i]).toLocaleDateString('{$jsLocale}', {
+                        day: '2-digit', month: 'short', year: 'numeric',
+                    });
+                    var rows = '';
+                    for (var s = 0; s < g.seriesNames.length; s++) {
+                        rows += `<div style='display:flex;justify-content:space-between;gap:16px;'>`
+                            + `<span style='color:` + g.colors[s] + `;'>` + g.seriesNames[s] + `</span>`
+                            + `<span style='font-variant-numeric:tabular-nums;'>` + fmt(g.series[s][i]) + `</span></div>`;
+                    }
+                    var pl = g.series[0][i] - g.series[1][i];
+                    rows += `<div style='display:flex;justify-content:space-between;gap:16px;border-top:1px solid #ece9e0;margin-top:4px;padding-top:4px;font-weight:600;'>`
+                        + `<span>{$plLabel}</span>`
+                        + `<span style='font-variant-numeric:tabular-nums;color:` + (pl >= 0 ? `#2f7d52` : `#c0392b`) + `;'>` + fmt(pl) + `</span></div>`;
+                    return `<div style='padding:8px 12px;font-family:IBM Plex Mono,monospace;font-size:12px;'>`
+                        + `<div style='color:#9a9488;margin-bottom:4px;'>` + date + `</div>` + rows + `</div>`;
                 },
             },
         }
