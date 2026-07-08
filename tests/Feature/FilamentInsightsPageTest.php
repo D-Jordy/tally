@@ -1,0 +1,110 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Filament\Pages\Insights;
+use App\Models\Account;
+use App\Models\Instrument;
+use App\Models\PriceHistory;
+use App\Models\Transaction;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Livewire;
+use Tests\TestCase;
+
+class FilamentInsightsPageTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_renders_with_default_horizon(): void
+    {
+        $user = User::factory()->create();
+
+        Livewire::actingAs($user)
+            ->test(Insights::class)
+            ->assertSuccessful()
+            ->assertSee(__('projections.kpi.expected', ['years' => 5]));
+    }
+
+    public function test_horizon_toggle_updates_the_kpi_label(): void
+    {
+        $user = User::factory()->create();
+
+        Livewire::actingAs($user)
+            ->test(Insights::class)
+            ->set('horizon', 10)
+            ->assertSee(__('projections.kpi.expected', ['years' => 10]));
+    }
+
+    public function test_annual_contribution_persists_to_user_settings(): void
+    {
+        $user = User::factory()->create();
+
+        Livewire::actingAs($user)
+            ->test(Insights::class)
+            ->set('annualContribution', 6000)
+            ->assertSuccessful();
+
+        $this->assertSame(6000.0, (float) $user->fresh()->settings['annual_contribution_eur']);
+    }
+
+    public function test_allocation_weights_positions_and_buckets_sectors(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+
+        $tech = Instrument::factory()->create(['name' => 'ASML', 'sector' => 'Technology']);
+        $etf = Instrument::factory()->create(['name' => 'Vanguard All-World', 'sector' => null]);
+
+        $this->buy($account, $tech, 10, 90);  // value 900 @ close 90
+        $this->buy($account, $etf, 10, 30);   // value 300 @ close 30
+        $this->price($tech, 90);
+        $this->price($etf, 30);
+
+        $allocation = Livewire::actingAs($user)->test(Insights::class)->get('allocation');
+
+        $this->assertEqualsWithDelta(1200.0, $allocation['total_eur'], 0.01);
+
+        // Sectors: named sector + null bucketed under the "other" label, ordered by value.
+        $sectors = collect($allocation['sectors'])->keyBy('sector');
+        $this->assertEqualsWithDelta(0.75, $sectors['Technology']['weight'], 0.0001);
+        $this->assertEqualsWithDelta(0.25, $sectors[__('insights.allocation.other')]['weight'], 0.0001);
+
+        // Positions sorted by value, weights sum to ~1.
+        $this->assertSame('ASML', $allocation['positions'][0]['name']);
+        $this->assertEqualsWithDelta(1.0, collect($allocation['positions'])->sum('weight'), 0.0001);
+    }
+
+    private function buy(Account $account, Instrument $instrument, float $qty, float $price): void
+    {
+        $local = $qty * $price;
+
+        Transaction::create([
+            'account_id' => $account->id,
+            'instrument_id' => $instrument->id,
+            'executed_at' => '2024-01-02 10:00:00',
+            'type' => 'buy',
+            'quantity' => $qty,
+            'price' => $price,
+            'price_currency' => 'EUR',
+            'fee' => 0,
+            'trade_currency' => 'EUR',
+            'fx_rate_to_eur' => null,
+            'local_value' => $local,
+            'value_eur' => $local,
+            'total_eur' => $local,
+            'source' => 'import',
+            'external_id' => 'buy-'.uniqid(),
+        ]);
+    }
+
+    private function price(Instrument $instrument, float $close): void
+    {
+        PriceHistory::create([
+            'instrument_id' => $instrument->id,
+            'date' => '2024-12-31',
+            'close' => $close,
+            'currency' => 'EUR',
+        ]);
+    }
+}
