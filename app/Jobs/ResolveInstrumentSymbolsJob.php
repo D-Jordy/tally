@@ -14,17 +14,32 @@ class ResolveInstrumentSymbolsJob implements ShouldQueue
 
     public function handle(YahooFinanceAdapter $yahoo): void
     {
-        $instruments = Instrument::whereNull('yahoo_symbol')->get();
+        // Pick up instruments still missing a symbol, plus resolved ones whose sector
+        // was never filled (real DEGIRO imports leave it null; only the seeder sets it).
+        $instruments = Instrument::whereNull('yahoo_symbol')
+            ->orWhereNull('sector')
+            ->get();
 
         foreach ($instruments as $instrument) {
             try {
-                $symbol = $yahoo->searchByIsin($instrument->isin, $instrument->exchange);
+                if ($instrument->yahoo_symbol === null) {
+                    $symbol = $yahoo->searchByIsin($instrument->isin, $instrument->exchange);
 
-                if ($symbol) {
-                    $instrument->update(['yahoo_symbol' => $symbol]);
-                    Log::info("ResolveSymbols: {$instrument->isin} → {$symbol}");
-                } else {
-                    Log::warning("ResolveSymbols: no match for {$instrument->isin} ({$instrument->name})");
+                    if ($symbol) {
+                        $instrument->update(['yahoo_symbol' => $symbol]);
+                        Log::info("ResolveSymbols: {$instrument->isin} → {$symbol}");
+                    } else {
+                        Log::warning("ResolveSymbols: no match for {$instrument->isin} ({$instrument->name})");
+                    }
+                }
+
+                // ETFs return no sector → stays null, retried on next refresh (rare, cheap).
+                if ($instrument->yahoo_symbol !== null && $instrument->sector === null) {
+                    $sector = $yahoo->sector($instrument->yahoo_symbol);
+
+                    if ($sector) {
+                        $instrument->update(['sector' => $sector]);
+                    }
                 }
             } catch (\Throwable $e) {
                 Log::error("ResolveSymbols: {$instrument->isin} failed", ['error' => $e->getMessage()]);

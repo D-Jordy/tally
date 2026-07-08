@@ -180,6 +180,7 @@ class ComputePortfolio
             'instrument_id'          => $instrument->id,
             'name'                   => $instrument->name,
             'isin'                   => $instrument->isin,
+            'sector'                 => $instrument->sector,
             'yahoo_symbol'           => $instrument->yahoo_symbol,
             'quantity'               => round($currentQty, 4),
             'price_currency'         => $priceCurrency,

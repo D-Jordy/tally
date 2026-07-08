@@ -155,6 +155,17 @@ class YahooFinanceAdapter
     }
 
     /**
+     * Fetch the instrument's sector from Yahoo's assetProfile module.
+     * Returns null for funds/ETFs (no single sector) or on failure.
+     */
+    public function sector(string $symbol): ?string
+    {
+        $data = $this->quoteSummary($symbol, 'assetProfile');
+
+        return $data['assetProfile']['sector'] ?? null;
+    }
+
+    /**
      * Search Yahoo Finance for a symbol matching the given ISIN.
      * Returns the best-matching yahoo_symbol string, or null if nothing found.
      * Pass the DEGIRO exchange code to improve match quality.
