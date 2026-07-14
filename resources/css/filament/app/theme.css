@@ -237,6 +237,23 @@ table tbody td {
     color: var(--divio-card);
 }
 
+/*
+ * Reinvest switch: the stock 44x24 toggle is chunky next to the compact controls, and its
+ * label sits inline rather than above. Scale the whole switch down (transform keeps the knob
+ * in proportion without reaching into Filament's internals) and claw back the space the
+ * unscaled layout box leaves behind.
+ */
+.fi-fo-toggle.divio-switch {
+    transform: scale(0.72);
+    transform-origin: left center;
+    margin-right: -12px;
+}
+
+.divio-controls .fi-fo-field:has(.divio-switch) .fi-fo-field-label {
+    font-size: 9px;
+    letter-spacing: 0.05em;
+}
+
 /* Insights annual-contribution: mono field, dashed frame like the original */
 .fi-input-wrp.divio-euro {
     border-style: dashed;

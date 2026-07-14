@@ -113,6 +113,35 @@ class ComputeProjectionsTest extends TestCase
         $this->assertNotEqualsWithDelta($endOfYear, $result['value_series'][1]['projected_value_eur'], 1.0);
     }
 
+    public function test_a_small_position_with_a_huge_target_barely_moves_the_rate(): void
+    {
+        $user = User::factory()->create();
+
+        $moonshot = Instrument::factory()->create(['analyst_target_price' => 200.0]); // +100%
+        $ballast = Instrument::factory()->create(['analyst_target_price' => 100.0]);  // flat
+
+        $positions = [
+            [   // 2% of the portfolio, analysts see it doubling
+                'instrument_id' => $moonshot->id,
+                'latest_price' => 100.0,
+                'current_value_eur' => 200.0,
+            ],
+            [   // 98% of the portfolio, analysts see no upside
+                'instrument_id' => $ballast->id,
+                'latest_price' => 100.0,
+                'current_value_eur' => 9800.0,
+            ],
+        ];
+
+        $result = $this->makeAction($positions, 10000, $this->oneDepositHistory(10000, 11000))
+            ->forUser($user, 5);
+
+        // Two brakes, in order: the +100% target is first clipped to the +50% per-holding
+        // ceiling, then weighted by the position's 2% share — 2% * 50% + 98% * 0% = 1%.
+        // A fat target on a rounding-error position cannot drag the whole portfolio up.
+        $this->assertEqualsWithDelta(0.01, $result['analyst_rate'], 0.001);
+    }
+
     public function test_reinvesting_dividends_compounds_them_into_the_value(): void
     {
         $user = User::factory()->create();

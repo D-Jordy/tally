@@ -123,7 +123,8 @@ class Insights extends Page
                 Toggle::make('reinvestDividends')
                     ->label(__('projections.reinvest_dividends'))
                     ->live()
-                    ->grow(false),
+                    ->grow(false)
+                    ->extraAttributes(['class' => 'divio-switch']),
                 TextInput::make('annualContribution')
                     ->label(__('projections.annual_contribution'))
                     ->numeric()
