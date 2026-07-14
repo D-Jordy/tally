@@ -6,17 +6,12 @@
     $exDate = fn ($date) => \Illuminate\Support\Carbon::parse($date)->translatedFormat('d M Y');
     $perShare = fn ($row) => Number::format((float) $row['amount_per_share'], maxPrecision: 4, locale: $locale).' '.$row['currency'];
 
-    $summary = $this->summary;
     $head = 'font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--divio-muted,#9a9488);padding:10px 16px;font-weight:500;';
 @endphp
 
 <x-filament-panels::page>
-    {{-- KPI row --}}
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
-        <x-divio.kpi :label="__('dividends.kpi.next_12m')" :value="$eur($summary['next_12m_total_eur'])" rule="ink" />
-        <x-divio.kpi :label="__('dividends.kpi.trailing_12m')" :value="$eur($summary['trailing_12m_received_eur'])" rule="positive" valueColor="var(--divio-positive,#2f7d52)" />
-        <x-divio.kpi :label="__('dividends.kpi.paying_positions')" :value="$summary['instrument_count']" rule="neutral" />
-    </div>
+    {{-- KPI row (stock Filament stats, divio-themed) --}}
+    {{ $this->summaryStats }}
 
     {{-- Stacked bar --}}
     @livewire(\App\Filament\Widgets\DividendsBarChart::class)

@@ -5,7 +5,7 @@
 @php
     [$bg, $color, $text] = match ($type) {
         'estimate' => ['#efe9dc', '#a89c86', __('dividends.badge.estimate')],
-        default => ['#e6efe6', '#2f7d52', __('dividends.badge.confirmed')],
+        default => ['#e6efe6', '#5a8f6d', __('dividends.badge.confirmed')],
     };
 @endphp
 

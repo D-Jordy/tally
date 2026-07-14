@@ -4,13 +4,21 @@ namespace App\Filament\Pages;
 
 use App\Actions\ComputePortfolio;
 use App\Actions\ComputeProjections;
+use App\Filament\Concerns\BuildsStats;
 use BackedEnum;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\ToggleButtons;
 use Filament\Pages\Page;
+use Filament\Schemas\Components\Flex;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Collection;
 
 class Insights extends Page
 {
+    use BuildsStats;
+
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedArrowTrendingUp;
 
     protected static ?int $navigationSort = 3;
@@ -60,6 +68,49 @@ class Insights extends Page
     public function getTitle(): string
     {
         return __('insights.title');
+    }
+
+    public function controls(Schema $schema): Schema
+    {
+        $suffix = __('projections.year_suffix');
+
+        return $schema->components([
+            Flex::make([
+                ToggleButtons::make('horizon')
+                    ->label(__('projections.horizon'))
+                    ->options(collect([1, 3, 5, 10])->mapWithKeys(fn (int $years): array => [$years => $years.$suffix])->all())
+                    ->grouped()
+                    ->live()
+                    ->grow(false)
+                    ->extraAttributes(['class' => 'divio-segmented']),
+                TextInput::make('annualContribution')
+                    ->label(__('projections.annual_contribution'))
+                    ->numeric()
+                    ->minValue(0)
+                    ->step(100)
+                    ->prefix('€')
+                    ->live(debounce: '600ms')
+                    ->grow(false)
+                    ->extraAttributes(['class' => 'divio-euro']),
+            ])->extraAttributes(['class' => 'divio-controls']),
+        ]);
+    }
+
+    public function projectionStats(Schema $schema): Schema
+    {
+        $valueSeries = $this->data['value_series'] ?? [];
+        $dividendSeries = $this->data['dividend_series'] ?? [];
+        $projectedValue = $valueSeries === [] ? 0 : end($valueSeries)['projected_value_eur'];
+        $projectedDividends = $dividendSeries === [] ? 0 : end($dividendSeries)['projected_dividends_eur'];
+
+        return $schema->components([
+            Section::make()->contained(false)->gridContainer()->columns(4)->schema([
+                $this->stat(__('projections.kpi.current'), $this->eur($this->data['starting_value_eur'] ?? 0), rule: 'neutral'),
+                $this->stat(__('projections.kpi.expected', ['years' => $this->horizon]), $this->eur($projectedValue), rule: 'ink'),
+                $this->stat(__('projections.kpi.growth_rate'), $this->pct($this->data['growth_rate'] ?? 0), rule: 'positive', color: 'var(--divio-positive,#2f7d52)'),
+                $this->stat(__('projections.kpi.dividends', ['years' => $this->horizon]), $this->eur($projectedDividends), rule: 'neutral'),
+            ]),
+        ]);
     }
 
     private function recompute(): void

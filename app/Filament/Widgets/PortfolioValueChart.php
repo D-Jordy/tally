@@ -67,7 +67,7 @@ class PortfolioValueChart extends ApexChartWidget
             'yaxis' => [
                 'labels' => ['style' => ['colors' => '#9a9488', 'fontFamily' => 'IBM Plex Mono, monospace']],
             ],
-            'colors' => ['#1a1a1a', '#9a9488', '#2f7d52'],
+            'colors' => ['#1a1a1a', '#9a9488', '#5a8f6d'],
             'stroke' => ['curve' => 'smooth', 'width' => [2.5, 1.5, 1.5], 'dashArray' => [0, 4, 0]],
             'legend' => ['show' => true, 'fontFamily' => 'IBM Plex Mono, monospace', 'labels' => ['colors' => '#9a9488']],
             'fill' => [
@@ -212,7 +212,7 @@ class PortfolioValueChart extends ApexChartWidget
                         var pl = g.series[0][i] - g.series[1][i];
                         rows += `<div style='display:flex;justify-content:space-between;gap:16px;border-top:1px solid #ece9e0;margin-top:4px;padding-top:4px;font-weight:600;'>`
                             + `<span>{$plLabel}</span>`
-                            + `<span style='font-variant-numeric:tabular-nums;color:` + (pl >= 0 ? `#2f7d52` : `#c0392b`) + `;'>` + fmt(pl) + `</span></div>`;
+                            + `<span style='font-variant-numeric:tabular-nums;color:` + (pl >= 0 ? `#5a8f6d` : `#b06a5f`) + `;'>` + fmt(pl) + `</span></div>`;
                     }
                     return `<div style='padding:8px 12px;font-family:IBM Plex Mono,monospace;font-size:12px;'>`
                         + `<div style='color:#9a9488;margin-bottom:4px;'>` + date + `</div>` + rows + `</div>`;

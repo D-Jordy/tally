@@ -42,6 +42,30 @@ class PortfolioPageTest extends TestCase
             ->assertDontSee(__('portfolio.empty.title'));
     }
 
+    public function test_renders_the_summary_kpi_stats(): void
+    {
+        $user = User::factory()->create();
+
+        Livewire::actingAs($user)
+            ->test(Portfolio::class)
+            ->assertSuccessful()
+            ->assertSee(__('portfolio.kpi.market_value'))
+            ->assertSee(__('portfolio.kpi.realized'));
+    }
+
+    public function test_mode_and_range_controls_drive_the_chart(): void
+    {
+        $user = User::factory()->create();
+
+        Livewire::actingAs($user)
+            ->test(Portfolio::class)
+            ->set('mode', 'pl')
+            ->set('range', '6M')
+            ->assertSuccessful()
+            ->assertSet('mode', 'pl')
+            ->assertSet('range', '6M');
+    }
+
     public function test_does_not_leak_another_users_positions(): void
     {
         $user = User::factory()->create();

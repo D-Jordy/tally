@@ -5,71 +5,29 @@
     $eur = fn ($value) => Number::currency((float) $value, 'EUR', $locale);
     $pct = fn ($value) => $value === null ? null : Number::percentage((float) $value * 100, maxPrecision: 1, locale: $locale);
     $signColor = fn ($value) => (float) $value >= 0 ? 'var(--divio-positive,#2f7d52)' : 'var(--divio-negative,#c0392b)';
-
-    $summary = $this->summary;
 @endphp
 
 <x-filament-panels::page>
-    {{-- KPI row 1 --}}
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;">
-        <x-divio.kpi :label="__('portfolio.kpi.market_value')" :value="$eur($summary['total_value_eur'])" rule="ink" />
-        <x-divio.kpi :label="__('portfolio.kpi.deposited')" :value="$eur($summary['deposited_eur'])" rule="neutral" />
-        <x-divio.kpi
-            :label="__('portfolio.kpi.net_gain')"
-            :value="$eur($summary['net_gain_eur'])"
-            rule="positive"
-            :sub="$pct($summary['net_gain_pct'])"
-            :valueColor="$signColor($summary['net_gain_eur'])"
-        />
-        <x-divio.kpi
-            :label="__('portfolio.kpi.unrealized')"
-            :value="$eur($summary['total_unrealized_gain_eur'])"
-            rule="positive"
-            :sub="$pct($summary['total_unrealized_gain_pct'])"
-            :valueColor="$signColor($summary['total_unrealized_gain_eur'])"
-        />
-    </div>
+    {{-- KPI rows (stock Filament stats, divio-themed) --}}
+    {{ $this->summaryStats }}
+    {{ $this->returnsStats }}
 
-    {{-- KPI row 2 --}}
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
-        <x-divio.kpi :label="__('portfolio.kpi.realized')" :value="$eur($summary['total_realized_gain_eur'])" :valueColor="$signColor($summary['total_realized_gain_eur'])" />
-        <x-divio.kpi :label="__('portfolio.kpi.dividends')" :value="$eur($summary['total_dividend_eur'])" valueColor="var(--divio-positive,#2f7d52)" />
-        <x-divio.kpi :label="__('portfolio.kpi.fees')" :value="$eur($summary['total_fees_eur'])" valueColor="var(--divio-negative,#c0392b)" />
-    </div>
-
-    {{-- Toggles: mode (left) + range (right). Underlined text links, remembered in localStorage. --}}
-    @php
-        $toggle = fn (bool $active) => "font-family:'IBM Plex Mono',monospace;font-size:12px;padding:2px 0;background:none;border:none;cursor:pointer;color:".($active ? 'var(--divio-ink,#1a1a1a)' : 'var(--divio-muted-nav,#8a8474)').";border-bottom:2px solid ".($active ? 'var(--divio-ink,#1a1a1a)' : 'transparent').";";
-    @endphp
+    {{-- Toggles: mode (left) + range (right). ToggleButtons skinned as underlined
+         text links (theme: .divio-linkbar); localStorage-remembered, drive chart :key remount. --}}
     <div
-        x-data="{
-            init() {
-                const range = localStorage.getItem('tally.pv.range');
-                if (range && range !== '{{ $this->range }}') { $wire.set('range', range); }
-                const mode = localStorage.getItem('tally.pv.mode');
-                if (mode && mode !== '{{ $this->mode }}') { $wire.set('mode', mode); }
-            },
-        }"
+        x-data
+        x-init="
+            const range = localStorage.getItem('tally.pv.range');
+            if (range && range !== $wire.range) { $wire.set('range', range); }
+            const mode = localStorage.getItem('tally.pv.mode');
+            if (mode && mode !== $wire.mode) { $wire.set('mode', mode); }
+            $wire.$watch('range', (value) => localStorage.setItem('tally.pv.range', value));
+            $wire.$watch('mode', (value) => localStorage.setItem('tally.pv.mode', value));
+        "
         style="display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:-8px;"
     >
-        <div style="display:flex;gap:16px;">
-            @foreach (['value', 'pl', 'roi'] as $value)
-                <button
-                    type="button"
-                    x-on:click="localStorage.setItem('tally.pv.mode', '{{ $value }}'); $wire.set('mode', '{{ $value }}')"
-                    style="{{ $toggle($this->mode === $value) }}"
-                >{{ __('portfolio.chart.mode.'.$value) }}</button>
-            @endforeach
-        </div>
-        <div style="display:flex;gap:16px;">
-            @foreach (['1M' => '1M', '6M' => '6M', '1Y' => '1J', 'ALL' => 'ALL'] as $value => $label)
-                <button
-                    type="button"
-                    x-on:click="localStorage.setItem('tally.pv.range', '{{ $value }}'); $wire.set('range', '{{ $value }}')"
-                    style="{{ $toggle($this->range === $value) }}"
-                >{{ $label }}</button>
-            @endforeach
-        </div>
+        {{ $this->modeControl }}
+        {{ $this->rangeControl }}
     </div>
 
     {{-- Chart (re-mounts on range/mode change via :key) --}}
