@@ -34,7 +34,11 @@ class ComputeProjections
      *   dividend_series: array<int, array{year: int, projected_dividends_eur: float}>,
      * }
      */
-    public function forUser(User $user, int $horizonYears = 5): array
+    /**
+     * `$annualContribution` overrides the stored setting, so a caller holding a
+     * not-yet-persisted value (the Insights form) never projects on stale input.
+     */
+    public function forUser(User $user, int $horizonYears = 5, ?float $annualContribution = null): array
     {
         $horizonYears = max(1, min(10, $horizonYears));
 
@@ -46,7 +50,7 @@ class ComputeProjections
         $analystRate = $this->computeAnalystRate($positions, $priorRate);
         $growthRate  = $this->blendRates($priorRate, $analystRate);
 
-        $annualContribution = (float) ($user->settings['annual_contribution_eur'] ?? 0);
+        $annualContribution = max(0.0, $annualContribution ?? (float) ($user->settings['annual_contribution_eur'] ?? 0));
 
         $dividendData       = $this->dividends->forUser($user);
         $startingDividendEur = (float) ($dividendData['summary']['next_12m_total_eur'] ?? 0);

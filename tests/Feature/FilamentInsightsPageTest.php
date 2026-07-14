@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Actions\ComputeProjections;
 use App\Filament\Pages\Insights;
 use App\Models\Account;
 use App\Models\Instrument;
@@ -9,6 +10,7 @@ use App\Models\PriceHistory;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Number;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -73,6 +75,34 @@ class FilamentInsightsPageTest extends TestCase
         // Positions sorted by value, weights sum to ~1.
         $this->assertSame('ASML', $allocation['positions'][0]['name']);
         $this->assertEqualsWithDelta(1.0, collect($allocation['positions'])->sum('weight'), 0.0001);
+    }
+
+    public function test_horizon_toggle_recomputes_the_projected_value(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $instrument = Instrument::factory()->create(['name' => 'ASML']);
+        $this->buy($account, $instrument, 10, 90);
+        $this->price($instrument, 90);
+
+        // The value the action independently says each horizon should project to.
+        $expected = function (int $years) use ($user): string {
+            $series = app(ComputeProjections::class)->forUser($user->fresh(), $years)['value_series'];
+
+            return Number::currency((float) end($series)['projected_value_eur'], 'EUR', app()->getLocale());
+        };
+
+        $this->assertNotSame($expected(1), $expected(10));
+
+        // Regression: the stat used to render one horizon behind, because Filament builds
+        // the schema before the `updated` hook that refreshed the stored projection ran.
+        Livewire::actingAs($user)
+            ->test(Insights::class)
+            ->set('horizon', 10)
+            ->assertSee($expected(10))
+            ->set('horizon', 1)
+            ->assertSee($expected(1))
+            ->assertDontSee($expected(10));
     }
 
     public function test_allocation_labels_positions_with_the_ticker(): void

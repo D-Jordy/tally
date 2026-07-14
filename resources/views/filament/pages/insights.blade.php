@@ -1,5 +1,5 @@
 @php
-    $valueSeries = $this->data['value_series'] ?? [];
+    $valueSeries = $this->valueSeries();
     $allocation = $this->allocation;
 
     // `label` is what the slice/legend shows (ticker), `title` what the tooltip shows.

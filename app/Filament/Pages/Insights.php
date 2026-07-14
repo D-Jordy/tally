@@ -36,16 +36,23 @@ class Insights extends Page
     public float $annualContribution = 0;
 
     /** @var array<string, mixed> */
-    public array $data = [];
-
-    /** @var array<string, mixed> */
     public array $allocation = [];
+
+    /**
+     * Derived, never stored on the component. Filament builds the stat schema during
+     * the update phase — before `updated*` hooks run — so a projection refreshed by a
+     * hook would render one horizon behind. Deriving it on read keeps them in step.
+     *
+     * @var array<string, mixed>|null
+     */
+    private ?array $projections = null;
+
+    private ?string $projectionsKey = null;
 
     public function mount(): void
     {
         $this->annualContribution = (float) (auth()->user()->settings['annual_contribution_eur'] ?? 0);
         $this->allocation = $this->computeAllocation();
-        $this->recompute();
     }
 
     public function updatedHorizon(): void
@@ -53,8 +60,6 @@ class Insights extends Page
         if (! in_array($this->horizon, [1, 3, 5, 10], true)) {
             $this->horizon = 5;
         }
-
-        $this->recompute();
     }
 
     public function updatedAnnualContribution(): void
@@ -62,8 +67,26 @@ class Insights extends Page
         $user = auth()->user();
         $user->settings = [...$user->settings ?? [], 'annual_contribution_eur' => max(0, $this->annualContribution)];
         $user->save();
+    }
 
-        $this->recompute();
+    /** @return array<int, array<string, mixed>> */
+    public function valueSeries(): array
+    {
+        return $this->projections()['value_series'] ?? [];
+    }
+
+    /** @return array<string, mixed> */
+    private function projections(): array
+    {
+        $key = $this->horizon.'|'.$this->annualContribution;
+
+        if ($this->projectionsKey !== $key) {
+            $this->projections = app(ComputeProjections::class)
+                ->forUser(auth()->user(), $this->horizon, $this->annualContribution);
+            $this->projectionsKey = $key;
+        }
+
+        return $this->projections;
     }
 
     public function getTitle(): string
@@ -99,16 +122,17 @@ class Insights extends Page
 
     public function projectionStats(Schema $schema): Schema
     {
-        $valueSeries = $this->data['value_series'] ?? [];
-        $dividendSeries = $this->data['dividend_series'] ?? [];
+        $projections = $this->projections();
+        $valueSeries = $projections['value_series'] ?? [];
+        $dividendSeries = $projections['dividend_series'] ?? [];
         $projectedValue = $valueSeries === [] ? 0 : end($valueSeries)['projected_value_eur'];
         $projectedDividends = $dividendSeries === [] ? 0 : end($dividendSeries)['projected_dividends_eur'];
 
         return $schema->components([
             Section::make()->contained(false)->gridContainer()->columns(4)->schema([
-                $this->stat(__('projections.kpi.current'), $this->eur($this->data['starting_value_eur'] ?? 0), rule: 'neutral'),
+                $this->stat(__('projections.kpi.current'), $this->eur($projections['starting_value_eur'] ?? 0), rule: 'neutral'),
                 $this->stat(__('projections.kpi.expected', ['years' => $this->horizon]), $this->eur($projectedValue), rule: 'ink'),
-                $this->stat(__('projections.kpi.growth_rate'), $this->pct($this->data['growth_rate'] ?? 0), rule: 'positive', color: 'var(--divio-positive,#2f7d52)'),
+                $this->stat(__('projections.kpi.growth_rate'), $this->pct($projections['growth_rate'] ?? 0), rule: 'positive', color: 'var(--divio-positive,#2f7d52)'),
                 $this->stat(__('projections.kpi.dividends', ['years' => $this->horizon]), $this->eur($projectedDividends), rule: 'neutral'),
             ]),
         ]);
@@ -126,11 +150,6 @@ class Insights extends Page
         $ticker = $position['symbol'] ?: Str::before((string) ($position['yahoo_symbol'] ?? ''), '.');
 
         return $ticker !== '' ? $ticker : $position['name'];
-    }
-
-    private function recompute(): void
-    {
-        $this->data = app(ComputeProjections::class)->forUser(auth()->user(), $this->horizon);
     }
 
     /**
