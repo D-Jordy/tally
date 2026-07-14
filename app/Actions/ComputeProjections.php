@@ -54,7 +54,6 @@ class ComputeProjections
         $priorRate   = $this->computePriorRate($user, $totalValueEur);
         $analystRate = $this->computeAnalystRate($positions, $priorRate);
         $yearlyRates = $this->yearlyRates($priorRate, $analystRate, $horizonYears);
-        $growthRate  = $this->effectiveRate($yearlyRates);
 
         $annualContribution = max(0.0, $annualContribution ?? (float) ($user->settings['annual_contribution_eur'] ?? 0));
         $reinvestDividends  = $reinvestDividends ?? (bool) ($user->settings['reinvest_dividends'] ?? false);
@@ -62,9 +61,12 @@ class ComputeProjections
         $dividendData       = $this->dividends->forUser($user);
         $startingDividendEur = (float) ($dividendData['summary']['next_12m_total_eur'] ?? 0);
 
+        $dividendYield = $totalValueEur > 0 ? $startingDividendEur / $totalValueEur : 0.0;
+        $growthRate    = $this->effectiveRate($yearlyRates, $dividendYield, $reinvestDividends);
+
         ['value' => $valueSeries, 'dividend' => $dividendSeries] = $this->buildSeries(
             $totalValueEur,
-            $startingDividendEur,
+            $dividendYield,
             $yearlyRates,
             $annualContribution,
             $reinvestDividends,
@@ -196,15 +198,25 @@ class ComputeProjections
      * The single rate that, compounded over the horizon, reproduces the projection — so the
      * headline percentage always agrees with the figure shown next to it.
      *
+     * The yearly rates are price growth only. When income is reinvested, capital compounds
+     * at (1 + rate)(1 + yield) each year, so the headline has to carry the yield too —
+     * otherwise it reports 14.4% while the money actually grows at 16.8%.
+     *
      * @param  array<int, float>  $rates
      */
-    private function effectiveRate(array $rates): float
+    private function effectiveRate(array $rates, float $dividendYield, bool $reinvestDividends): float
     {
         if ($rates === []) {
             return 0.0;
         }
 
-        $compounded = array_reduce($rates, fn (float $carry, float $rate): float => $carry * (1 + $rate), 1.0);
+        $incomeFactor = $reinvestDividends ? 1 + $dividendYield : 1.0;
+
+        $compounded = array_reduce(
+            $rates,
+            fn (float $carry, float $rate): float => $carry * (1 + $rate) * $incomeFactor,
+            1.0,
+        );
 
         return $compounded ** (1 / count($rates)) - 1;
     }
@@ -231,15 +243,13 @@ class ComputeProjections
      */
     private function buildSeries(
         float $startValue,
-        float $startDividend,
+        float $dividendYield,
         array $rates,
         float $contribution,
         bool $reinvestDividends,
     ): array {
-        $yield = $startValue > 0 ? $startDividend / $startValue : 0.0;
-
         $valueSeries    = [['year' => 0, 'projected_value_eur' => round($startValue, 2)]];
-        $dividendSeries = [['year' => 0, 'projected_dividends_eur' => round($startDividend, 2)]];
+        $dividendSeries = [['year' => 0, 'projected_dividends_eur' => round($dividendYield * $startValue, 2)]];
 
         $value = $startValue;
 
@@ -248,7 +258,7 @@ class ComputeProjections
             // credit them roughly half a year of growth instead of none at all.
             $value = $value * (1 + $rate) + $contribution * (1 + $rate / 2);
 
-            $dividend = $yield * $value;
+            $dividend = $dividendYield * $value;
 
             if ($reinvestDividends) {
                 $value += $dividend;

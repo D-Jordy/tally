@@ -266,13 +266,29 @@ class ComputeProjectionsTest extends TestCase
         ]];
 
         // No contribution, so the series is pure compounding and the CAGR must land on it.
-        $action = $this->makeAction($positions, 10000, $this->oneDepositHistory(10000, 11000));
-        $result = $action->forUser($user, 5, 0.0);
+        // Checked with income reinvested too: capital then compounds at (1 + rate)(1 + yield),
+        // so a headline carrying only the price rate would understate its own figure.
+        foreach ([false, true] as $reinvest) {
+            $result = $this->makeAction($positions, 10000, $this->oneDepositHistory(10000, 11000), 500.0)
+                ->forUser($user, 5, 0.0, $reinvest);
 
-        $start = (float) $result['starting_value_eur'];
-        $end = (float) collect($result['value_series'])->last()['projected_value_eur'];
+            $start = (float) $result['starting_value_eur'];
+            $end = (float) collect($result['value_series'])->last()['projected_value_eur'];
 
-        $this->assertEqualsWithDelta($end, $start * (1 + $result['growth_rate']) ** 5, 1.0);
+            // Delta absorbs the reported rate being rounded to 4dp before we compound it back.
+            $this->assertEqualsWithDelta(
+                $end,
+                $start * (1 + $result['growth_rate']) ** 5,
+                $end * 0.0005,
+                'growth_rate must reproduce the projection with reinvest '.var_export($reinvest, true),
+            );
+        }
+
+        // And reinvesting has to actually show up in the headline, not just in the figure.
+        $payOut = $this->makeAction($positions, 10000, $this->oneDepositHistory(10000, 11000), 500.0)->forUser($user, 5, 0.0, false);
+        $reinvested = $this->makeAction($positions, 10000, $this->oneDepositHistory(10000, 11000), 500.0)->forUser($user, 5, 0.0, true);
+
+        $this->assertGreaterThan($payOut['growth_rate'], $reinvested['growth_rate']);
     }
 
     public function test_analyst_target_influences_blended_rate(): void
