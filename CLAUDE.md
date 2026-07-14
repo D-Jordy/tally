@@ -28,7 +28,8 @@ Self-hosted portfolio & dividend tracker (DEGIRO-focused, EUR reporting, ~10 use
 ### Operating prod
 - Logs: `ssh root@46.62.196.140 'docker logs tally-app-1 --tail 50'` (also `tally-worker-1`, `tally-scheduler-1`, `caddy-caddy-1`). App log: `docker exec tally-app-1 tail -n 100 storage/logs/laravel.log`.
 - Artisan/tinker: `docker exec tally-app-1 php artisan ...`.
-- **Deploy/update:** `cd /srv/tally && git pull && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build`. App auto-migrates on boot (entrypoint `migrate --force`).
+- **Deploy = push a `v*` tag.** `git tag -a v1.2.3 -m '…' && git push origin v1.2.3` triggers `.github/workflows/deploy.yml` (SSH deploy) + `release.yml` (GHCR image). Don't SSH in to deploy by hand. App auto-migrates on boot (entrypoint `migrate --force`).
+- Compiled Vite assets live in the **`vite_build` named volume**, which Docker only seeds on first creation — a rebuilt image alone will NOT refresh it. The Dockerfile stashes the bundle in `/opt/vite-build` and the entrypoint copies it back into `public/build` every boot. Don't "simplify" that away or prod silently serves the CSS from the very first build.
 
 ### Known warts
 - **Boot migration race**: app+worker+scheduler all `migrate --force` at boot → worker crash-loops ~10s then self-heals; recurs each redeploy. Cosmetic. Fix = gate migrate to app only.
