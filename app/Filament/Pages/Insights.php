@@ -14,6 +14,7 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 class Insights extends Page
 {
@@ -113,6 +114,20 @@ class Insights extends Page
         ]);
     }
 
+    /**
+     * Short label for a donut slice. Real DEGIRO imports never fill `symbol` —
+     * ResolveInstrumentSymbolsJob only ever resolves `yahoo_symbol`, which carries an
+     * exchange suffix (NN.AS, VOW3.DE, RIO.L). Strip it; fall back to the full name.
+     *
+     * @param  array<string, mixed>  $position
+     */
+    private function ticker(array $position): string
+    {
+        $ticker = $position['symbol'] ?: Str::before((string) ($position['yahoo_symbol'] ?? ''), '.');
+
+        return $ticker !== '' ? $ticker : $position['name'];
+    }
+
     private function recompute(): void
     {
         $this->data = app(ComputeProjections::class)->forUser(auth()->user(), $this->horizon);
@@ -140,7 +155,7 @@ class Insights extends Page
             ->map(fn (array $position): array => [
                 'name' => $position['name'],
                 // Ticker labels the donut slice; the full name only shows on hover.
-                'symbol' => $position['symbol'] ?: $position['name'],
+                'symbol' => $this->ticker($position),
                 'value_eur' => round((float) $position['current_value_eur'], 2),
                 'weight' => round((float) $position['current_value_eur'] / $total, 4),
             ])

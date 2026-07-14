@@ -75,6 +75,44 @@ class FilamentInsightsPageTest extends TestCase
         $this->assertEqualsWithDelta(1.0, collect($allocation['positions'])->sum('weight'), 0.0001);
     }
 
+    public function test_allocation_labels_positions_with_the_ticker(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+
+        // Mirrors a real DEGIRO import: `symbol` is never filled, only `yahoo_symbol`
+        // gets resolved — and it carries an exchange suffix.
+        $imported = Instrument::factory()->create([
+            'name' => 'NN Group NV',
+            'symbol' => null,
+            'yahoo_symbol' => 'NN.AS',
+        ]);
+        $seeded = Instrument::factory()->create([
+            'name' => 'ASML Holding',
+            'symbol' => 'ASML',
+            'yahoo_symbol' => 'ASML.AS',
+        ]);
+        $unresolved = Instrument::factory()->create([
+            'name' => 'Mystery Fund',
+            'symbol' => null,
+            'yahoo_symbol' => null,
+        ]);
+
+        $this->buy($account, $imported, 10, 90);
+        $this->price($imported, 90);
+        $this->buy($account, $seeded, 10, 50);
+        $this->price($seeded, 50);
+        $this->buy($account, $unresolved, 10, 10);
+        $this->price($unresolved, 10);
+
+        $allocation = Livewire::actingAs($user)->test(Insights::class)->get('allocation');
+        $symbols = collect($allocation['positions'])->pluck('symbol', 'name');
+
+        $this->assertSame('NN', $symbols['NN Group NV']);        // suffix stripped
+        $this->assertSame('ASML', $symbols['ASML Holding']);      // explicit symbol wins
+        $this->assertSame('Mystery Fund', $symbols['Mystery Fund']); // falls back to the name
+    }
+
     private function buy(Account $account, Instrument $instrument, float $qty, float $price): void
     {
         $local = $qty * $price;
