@@ -34,15 +34,24 @@ class Dividends extends Page
     /** @var array<int, array<string, mixed>> */
     public array $projected = [];
 
+    /** @var array<int, array<string, mixed>> */
+    public array $byInstrument = [];
+
     /** @var array<string, mixed> */
     public array $summary = [];
 
     public function mount(ComputeIncomingDividends $compute): void
     {
-        ['confirmed' => $confirmed, 'events' => $events, 'summary' => $summary] = $compute->forUser(auth()->user());
+        [
+            'confirmed' => $confirmed,
+            'events' => $events,
+            'by_instrument' => $byInstrument,
+            'summary' => $summary,
+        ] = $compute->forUser(auth()->user());
 
         $this->confirmed = $confirmed;
         $this->projected = $events;
+        $this->byInstrument = $byInstrument;
         $this->summary = $summary;
     }
 
@@ -62,9 +71,10 @@ class Dividends extends Page
         $summary = $this->summary;
 
         return $schema->components([
-            Section::make()->contained(false)->gridContainer()->columns(3)->schema([
+            Section::make()->contained(false)->gridContainer()->columns(4)->schema([
                 $this->stat(__('dividends.kpi.next_12m'), $this->eur($summary['next_12m_total_eur']), rule: 'ink'),
                 $this->stat(__('dividends.kpi.trailing_12m'), $this->eur($summary['trailing_12m_received_eur']), rule: 'positive', color: 'var(--divio-positive,#2f7d52)'),
+                $this->stat(__('dividends.kpi.yield_on_cost'), $this->pct($summary['yield_on_cost']) ?? '—', rule: 'positive', color: 'var(--divio-positive,#2f7d52)'),
                 $this->stat(__('dividends.kpi.paying_positions'), $summary['instrument_count'], rule: 'neutral'),
             ]),
         ]);

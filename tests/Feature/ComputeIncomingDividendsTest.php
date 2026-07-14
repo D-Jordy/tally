@@ -93,6 +93,34 @@ class ComputeIncomingDividendsTest extends TestCase
         $this->assertLessThanOrEqual(230.00, $result['summary']['next_12m_total_eur']);
     }
 
+    public function test_by_instrument_reports_yield_and_yield_on_cost(): void
+    {
+        $instrument = Instrument::factory()->create(['yahoo_symbol' => 'TEST', 'quote_currency' => 'EUR']);
+        $this->seedQuarterlyDividends($instrument->id, 0.50, 'EUR');
+
+        $user = User::factory()->create();
+        $action = $this->makeAction([[
+            'instrument_id' => $instrument->id,
+            'quantity' => 100,
+            'cost_basis_eur' => 1000.00,
+            'current_value_eur' => 2000.00,
+        ]]);
+
+        $result = $action->forUser($user);
+
+        $this->assertCount(1, $result['by_instrument']);
+        $row = $result['by_instrument'][0];
+
+        // 4–5 quarterly events × €50 forward, so yield = forward / 2000, YOC = forward / 1000 (double).
+        $this->assertEqualsWithDelta($row['forward_12m_eur'] / 2000, $row['yield'], 0.0001);
+        $this->assertEqualsWithDelta($row['forward_12m_eur'] / 1000, $row['yield_on_cost'], 0.0001);
+        $this->assertEqualsWithDelta($row['yield'] * 2, $row['yield_on_cost'], 0.0001);
+        $this->assertEqualsWithDelta($result['summary']['next_12m_total_eur'], $row['forward_12m_eur'], 0.01);
+
+        // Single paying position → portfolio YOC equals its row YOC.
+        $this->assertEqualsWithDelta($row['yield_on_cost'], $result['summary']['yield_on_cost'], 0.0001);
+    }
+
     public function test_projections_ignore_a_one_off_special_dividend(): void
     {
         $instrument = Instrument::factory()->create(['yahoo_symbol' => 'SAB.MC', 'quote_currency' => 'EUR']);
