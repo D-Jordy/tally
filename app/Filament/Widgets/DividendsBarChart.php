@@ -43,7 +43,8 @@ class DividendsBarChart extends ApexChartWidget
             'yaxis' => [
                 'labels' => ['style' => ['colors' => '#9a9488', 'fontFamily' => 'IBM Plex Mono, monospace']],
             ],
-            'colors' => ['#2f7d52', '#d8d2c4'],
+            // Washed-out green, in step with --divio-positive.
+            'colors' => ['#5a8f6d', '#d8d2c4'],
             'plotOptions' => ['bar' => ['columnWidth' => '52%', 'borderRadius' => 2]],
             'grid' => ['borderColor' => '#ece9e0'],
             'legend' => ['position' => 'top', 'horizontalAlign' => 'right', 'fontFamily' => 'Inter, sans-serif'],

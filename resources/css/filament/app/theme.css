@@ -46,9 +46,10 @@
     --divio-muted: #9a9488;
     --divio-muted-nav: #8a8474;
     --divio-faint: #c4bfb3;
-    --divio-positive: #2f7d52;
+    /* Washed-out gain/loss tones — the saturated green/red read too loud against the paper. */
+    --divio-positive: #5a8f6d;
     --divio-positive-bg: #e6efe6;
-    --divio-negative: #c0392b;
+    --divio-negative: #b06a5f;
     --divio-danger-bg: #fbeceb;
     --divio-danger-border: #ecc4bf;
     --divio-estimate-bg: #efe9dc;
@@ -66,8 +67,10 @@
     background-color: transparent;
 }
 
-/* Cards / sections: hairline borders over shadows */
-.fi-section,
+/* Cards / sections: hairline borders over shadows.
+   Skip not-contained sections — those wrap our bare KPI stat grids and must stay
+   transparent, otherwise the whole section reads as one near-white card. */
+.fi-section:not(.fi-section-not-contained),
 .fi-wi,
 .fi-ta-ctn {
     background-color: var(--divio-card);
@@ -128,4 +131,124 @@ table tbody td {
 
 .fi-topbar-item-label {
     font-weight: 500;
+}
+
+/*
+ * KPI cards: stock Filament Stat components restyled to the divio ledger card.
+ * The per-stat top-rule + figure colour come from inline styles (BuildsStats);
+ * everything else is here so no page carries KPI typography.
+ */
+.fi-grid:has(.fi-wi-stats-overview-stat) {
+    gap: 14px;
+}
+
+.fi-wi-stats-overview-stat {
+    background-color: var(--divio-card);
+    border: 1px solid var(--divio-hairline);
+    border-radius: 8px;
+    padding: 16px;
+    box-shadow: none;
+    --tw-ring-shadow: 0 0 #0000; /* drop Filament's ring */
+}
+
+.fi-wi-stats-overview-stat .fi-wi-stats-overview-stat-content {
+    gap: 0.5rem;
+}
+
+.fi-wi-stats-overview-stat .fi-wi-stats-overview-stat-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--divio-muted);
+}
+
+.fi-wi-stats-overview-stat .fi-wi-stats-overview-stat-value {
+    font-family: var(--font-serif);
+    font-weight: 600;
+    font-size: 24px;
+    line-height: 1.1;
+    letter-spacing: normal;
+    color: var(--divio-stat-value, var(--divio-ink));
+}
+
+.fi-wi-stats-overview-stat .fi-wi-stats-overview-stat-description {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--divio-stat-value, var(--divio-muted));
+}
+
+/* Filament wraps the stats in a white card container (.fi-section-content-ctn bg)
+   AND gives the grid itself (.fi-sc) a ring + drop-shadow, so the 4 stat cards sit
+   inside an outer box. Our KPI row must be bare cards on paper, so strip both. */
+.fi-section-not-contained .fi-section-content-ctn,
+.fi-section-not-contained .fi-sc {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+/*
+ * Page controls: stock ToggleButtons / TextInput reskinned to the two divio
+ * control surfaces. Active state keys off the real radio (`input:checked`), so
+ * it stays correct through Livewire re-renders without any dynamic class.
+ */
+.divio-controls {
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+    width: 100%;
+}
+
+.divio-controls .fi-fo-field-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--divio-muted);
+    font-weight: 400;
+}
+
+/* Insights horizon: bordered segmented control, ink active fill */
+.divio-segmented.fi-btn-group {
+    border: 1px solid var(--divio-hairline);
+    border-radius: 7px;
+    overflow: hidden;
+    width: max-content;
+}
+
+.divio-segmented .fi-btn {
+    margin: 0;
+    padding: 7px 14px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    color: var(--divio-muted-nav);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 400;
+    box-shadow: none;
+    --tw-ring-shadow: 0 0 #0000;
+}
+
+.divio-segmented input:checked + .fi-btn,
+.divio-segmented input:checked + .fi-btn:hover {
+    background: var(--divio-ink);
+    color: var(--divio-card);
+}
+
+/* Insights annual-contribution: mono field, dashed frame like the original */
+.fi-input-wrp.divio-euro {
+    border-style: dashed;
+    border-color: var(--divio-dashed);
+}
+
+.divio-euro .fi-input {
+    font-family: var(--font-mono);
+    font-size: 13px;
+}
+
+.divio-euro .fi-input-wrp-label {
+    font-family: var(--font-mono);
+    color: var(--divio-muted);
 }
