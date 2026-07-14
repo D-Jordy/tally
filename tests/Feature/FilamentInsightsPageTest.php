@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Actions\ComputeProjections;
 use App\Filament\Pages\Insights;
 use App\Models\Account;
+use App\Models\Dividend;
 use App\Models\Instrument;
 use App\Models\PriceHistory;
 use App\Models\Transaction;
@@ -75,6 +76,41 @@ class FilamentInsightsPageTest extends TestCase
         // Positions sorted by value, weights sum to ~1.
         $this->assertSame('ASML', $allocation['positions'][0]['name']);
         $this->assertEqualsWithDelta(1.0, collect($allocation['positions'])->sum('weight'), 0.0001);
+    }
+
+    public function test_reinvest_toggle_persists_and_lifts_the_projection(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $instrument = Instrument::factory()->create(['name' => 'ASML']);
+        $this->buy($account, $instrument, 10, 90);
+        $this->price($instrument, 90);
+
+        // Without income there is nothing to reinvest and both projections are identical,
+        // so the portfolio has to actually pay a dividend for this test to mean anything.
+        Dividend::factory()->for($instrument)->create([
+            'ex_date' => now()->addMonth()->toDateString(),
+            'amount_per_share' => 2.50,
+            'currency' => 'EUR',
+            'confirmed' => true,
+        ]);
+
+        $projected = fn (bool $reinvest): string => Number::currency(
+            (float) end(app(ComputeProjections::class)->forUser($user->fresh(), 10, 0.0, $reinvest)['value_series'])['projected_value_eur'],
+            'EUR',
+            app()->getLocale(),
+        );
+
+        Livewire::actingAs($user)
+            ->test(Insights::class)
+            ->set('annualContribution', 0)
+            ->set('horizon', 10)
+            ->assertSee($projected(false))
+            ->set('reinvestDividends', true)
+            ->assertSee($projected(true))       // toggling must recompute, not lag a click behind
+            ->assertDontSee($projected(false));
+
+        $this->assertTrue((bool) $user->fresh()->settings['reinvest_dividends']);
     }
 
     public function test_horizon_toggle_recomputes_the_projected_value(): void

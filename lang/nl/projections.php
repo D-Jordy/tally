@@ -6,6 +6,7 @@ return [
 
     'horizon' => 'Horizon',
     'annual_contribution' => 'Jaarlijkse inleg',
+    'reinvest_dividends' => 'Dividend herbeleggen',
     'year_suffix' => 'J',
 
     'kpi' => [

@@ -26,9 +26,10 @@
 
     {{ $this->controls }}
 
+    {{-- Every input that changes the series must be in the key, or the chart keeps the old one. --}}
     @livewire(
         \App\Filament\Widgets\ProjectionsGrowthChart::class,
         ['series' => $valueSeries],
-        key('proj-'.$this->horizon.'-'.$this->annualContribution)
+        key('proj-'.$this->horizon.'-'.$this->annualContribution.'-'.(int) $this->reinvestDividends)
     )
 </x-filament-panels::page>

@@ -7,6 +7,7 @@ use App\Actions\ComputeProjections;
 use App\Filament\Concerns\BuildsStats;
 use BackedEnum;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\ToggleButtons;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\Flex;
@@ -35,6 +36,8 @@ class Insights extends Page
 
     public float $annualContribution = 0;
 
+    public bool $reinvestDividends = false;
+
     /** @var array<string, mixed> */
     public array $allocation = [];
 
@@ -51,7 +54,10 @@ class Insights extends Page
 
     public function mount(): void
     {
-        $this->annualContribution = (float) (auth()->user()->settings['annual_contribution_eur'] ?? 0);
+        $settings = auth()->user()->settings ?? [];
+
+        $this->annualContribution = (float) ($settings['annual_contribution_eur'] ?? 0);
+        $this->reinvestDividends = (bool) ($settings['reinvest_dividends'] ?? false);
         $this->allocation = $this->computeAllocation();
     }
 
@@ -69,6 +75,13 @@ class Insights extends Page
         $user->save();
     }
 
+    public function updatedReinvestDividends(): void
+    {
+        $user = auth()->user();
+        $user->settings = [...$user->settings ?? [], 'reinvest_dividends' => $this->reinvestDividends];
+        $user->save();
+    }
+
     /** @return array<int, array<string, mixed>> */
     public function valueSeries(): array
     {
@@ -78,11 +91,11 @@ class Insights extends Page
     /** @return array<string, mixed> */
     private function projections(): array
     {
-        $key = $this->horizon.'|'.$this->annualContribution;
+        $key = $this->horizon.'|'.$this->annualContribution.'|'.(int) $this->reinvestDividends;
 
         if ($this->projectionsKey !== $key) {
             $this->projections = app(ComputeProjections::class)
-                ->forUser(auth()->user(), $this->horizon, $this->annualContribution);
+                ->forUser(auth()->user(), $this->horizon, $this->annualContribution, $this->reinvestDividends);
             $this->projectionsKey = $key;
         }
 
@@ -107,6 +120,10 @@ class Insights extends Page
                     ->live()
                     ->grow(false)
                     ->extraAttributes(['class' => 'divio-segmented']),
+                Toggle::make('reinvestDividends')
+                    ->label(__('projections.reinvest_dividends'))
+                    ->live()
+                    ->grow(false),
                 TextInput::make('annualContribution')
                     ->label(__('projections.annual_contribution'))
                     ->numeric()

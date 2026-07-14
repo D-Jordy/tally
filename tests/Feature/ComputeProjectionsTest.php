@@ -113,6 +113,30 @@ class ComputeProjectionsTest extends TestCase
         $this->assertNotEqualsWithDelta($endOfYear, $result['value_series'][1]['projected_value_eur'], 1.0);
     }
 
+    public function test_reinvesting_dividends_compounds_them_into_the_value(): void
+    {
+        $user = User::factory()->create();
+        $history = $this->oneDepositHistory(10000, 12000);
+
+        $payOut = $this->makeAction([], 12000, $history, 600.0)->forUser($user, 10, 0.0, false);
+        $reinvest = $this->makeAction([], 12000, $history, 600.0)->forUser($user, 10, 0.0, true);
+
+        $endValue = fn (array $r): float => (float) collect($r['value_series'])->last()['projected_value_eur'];
+        $endDividend = fn (array $r): float => (float) collect($r['dividend_series'])->last()['projected_dividends_eur'];
+
+        // Reinvested income buys more capital, which then throws off more income.
+        $this->assertGreaterThan($endValue($payOut), $endValue($reinvest));
+        $this->assertGreaterThan($endDividend($payOut), $endDividend($reinvest));
+
+        // It has to compound, not just add up: ten years of ~5% income reinvested must beat
+        // simply banking that income at year 10 without ever putting it to work.
+        $bankedIncome = collect($payOut['dividend_series'])->skip(1)->sum('projected_dividends_eur');
+        $this->assertGreaterThan($endValue($payOut) + $bankedIncome, $endValue($reinvest));
+
+        // Off by default, so the payout projection is unchanged for anyone who never toggles it.
+        $this->assertSame($payOut['value_series'], $this->makeAction([], 12000, $history, 600.0)->forUser($user, 10, 0.0)['value_series']);
+    }
+
     public function test_dividends_scale_with_the_capital_contributed(): void
     {
         $user = User::factory()->create();

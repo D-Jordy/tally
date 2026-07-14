@@ -35,11 +35,16 @@ class ComputeProjections
      * }
      */
     /**
-     * `$annualContribution` overrides the stored setting, so a caller holding a
-     * not-yet-persisted value (the Insights form) never projects on stale input.
+     * `$annualContribution` and `$reinvestDividends` override the stored settings, so a
+     * caller holding a not-yet-persisted value (the Insights form) never projects on
+     * stale input.
      */
-    public function forUser(User $user, int $horizonYears = 5, ?float $annualContribution = null): array
-    {
+    public function forUser(
+        User $user,
+        int $horizonYears = 5,
+        ?float $annualContribution = null,
+        ?bool $reinvestDividends = null,
+    ): array {
         $horizonYears = max(1, min(10, $horizonYears));
 
         $portfolioData   = $this->portfolio->forUser($user);
@@ -52,12 +57,18 @@ class ComputeProjections
         $growthRate  = $this->effectiveRate($yearlyRates);
 
         $annualContribution = max(0.0, $annualContribution ?? (float) ($user->settings['annual_contribution_eur'] ?? 0));
+        $reinvestDividends  = $reinvestDividends ?? (bool) ($user->settings['reinvest_dividends'] ?? false);
 
         $dividendData       = $this->dividends->forUser($user);
         $startingDividendEur = (float) ($dividendData['summary']['next_12m_total_eur'] ?? 0);
 
-        $valueSeries    = $this->buildValueSeries($totalValueEur, $yearlyRates, $annualContribution);
-        $dividendSeries = $this->buildDividendSeries($startingDividendEur, $totalValueEur, $valueSeries);
+        ['value' => $valueSeries, 'dividend' => $dividendSeries] = $this->buildSeries(
+            $totalValueEur,
+            $startingDividendEur,
+            $yearlyRates,
+            $annualContribution,
+            $reinvestDividends,
+        );
 
         return [
             'horizon_years'          => $horizonYears,
@@ -65,6 +76,7 @@ class ComputeProjections
             'prior_rate'             => round($priorRate, 4),
             'analyst_rate'           => round($analystRate, 4),
             'annual_contribution_eur' => $annualContribution,
+            'reinvest_dividends'     => $reinvestDividends,
             'starting_value_eur'     => round($totalValueEur, 2),
             'value_series'           => $valueSeries,
             'dividend_series'        => $dividendSeries,
@@ -201,38 +213,51 @@ class ComputeProjections
     // Projection series
     // -------------------------------------------------------------------------
 
-    /** @param array<int, float> $rates */
-    private function buildValueSeries(float $startValue, array $rates, float $contribution): array
-    {
-        $series = [['year' => 0, 'projected_value_eur' => round($startValue, 2)]];
-        $value  = $startValue;
+    /**
+     * Value and income are projected together because reinvested dividends feed back into
+     * next year's capital.
+     *
+     * Income is a constant yield on the projected value: it has to scale with the capital
+     * actually invested, otherwise contributions grow the portfolio but never the income it
+     * throws off. With no contributions and no reinvestment this collapses to the original
+     * startDividend * Π(1 + rate).
+     *
+     * Adding dividends on top of the growth rate is not double counting: `total_value_eur`
+     * is the market value of the holdings only (dividend cash is tracked separately), and
+     * the analyst rate is a pure price target — so neither rate carries dividend return.
+     *
+     * @param  array<int, float>  $rates
+     * @return array{value: array<int, array<string, mixed>>, dividend: array<int, array<string, mixed>>}
+     */
+    private function buildSeries(
+        float $startValue,
+        float $startDividend,
+        array $rates,
+        float $contribution,
+        bool $reinvestDividends,
+    ): array {
+        $yield = $startValue > 0 ? $startDividend / $startValue : 0.0;
+
+        $valueSeries    = [['year' => 0, 'projected_value_eur' => round($startValue, 2)]];
+        $dividendSeries = [['year' => 0, 'projected_dividends_eur' => round($startDividend, 2)]];
+
+        $value = $startValue;
 
         foreach ($rates as $year => $rate) {
             // Contributions trickle in across the year rather than landing on 31 Dec, so
             // credit them roughly half a year of growth instead of none at all.
-            $value    = $value * (1 + $rate) + $contribution * (1 + $rate / 2);
-            $series[] = ['year' => $year, 'projected_value_eur' => round(max(0, $value), 2)];
+            $value = $value * (1 + $rate) + $contribution * (1 + $rate / 2);
+
+            $dividend = $yield * $value;
+
+            if ($reinvestDividends) {
+                $value += $dividend;
+            }
+
+            $valueSeries[]    = ['year' => $year, 'projected_value_eur' => round(max(0, $value), 2)];
+            $dividendSeries[] = ['year' => $year, 'projected_dividends_eur' => round(max(0, $dividend), 2)];
         }
 
-        return $series;
-    }
-
-    /**
-     * Dividend income scales with the capital actually invested, so project it as a constant
-     * yield on the projected portfolio value. Compounding the starting dividend by the growth
-     * rate alone ignored contributions entirely — tripling the portfolio via deposits threw
-     * off exactly as much income as never depositing a cent. With no contributions this still
-     * collapses to the old startDividend * Π(1 + rate).
-     *
-     * @param  array<int, array{year: int, projected_value_eur: float}>  $valueSeries
-     */
-    private function buildDividendSeries(float $startDividend, float $startValue, array $valueSeries): array
-    {
-        $yield = $startValue > 0 ? $startDividend / $startValue : 0.0;
-
-        return array_map(fn (array $point): array => [
-            'year'                    => $point['year'],
-            'projected_dividends_eur' => round(max(0, $yield * $point['projected_value_eur']), 2),
-        ], $valueSeries);
+        return ['value' => $valueSeries, 'dividend' => $dividendSeries];
     }
 }

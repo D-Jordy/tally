@@ -6,6 +6,7 @@ return [
 
     'horizon' => 'Horizon',
     'annual_contribution' => 'Annual contribution',
+    'reinvest_dividends' => 'Reinvest dividends',
     'year_suffix' => 'Y',
 
     'kpi' => [
