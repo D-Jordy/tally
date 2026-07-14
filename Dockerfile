@@ -29,8 +29,13 @@ RUN npm ci
 # Application
 COPY . .
 
+# Stash the compiled Vite assets outside the app dir: public/build is a named
+# volume, which Docker only seeds on first creation, so the entrypoint has to
+# copy them back in on every boot (see docker/entrypoint.sh).
 RUN composer dump-autoload --optimize \
     && npm run build \
+    && mkdir -p /opt/vite-build \
+    && cp -a public/build/. /opt/vite-build/ \
     && chown -R www-data:www-data storage bootstrap/cache
 
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh

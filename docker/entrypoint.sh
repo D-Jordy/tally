@@ -12,4 +12,13 @@ php artisan migrate --force --no-interaction
 # anything baked into the image, so regenerate them into public/ on every boot.
 php artisan filament:assets
 
+# public/build is a named volume, and Docker only seeds a named volume from the image
+# the first time it is created. Without this, a redeployed image keeps serving the Vite
+# bundle from the very first build. Refresh it from the copy stashed in the image.
+if [ -d /opt/vite-build ]; then
+    mkdir -p public/build
+    rm -rf public/build/*
+    cp -a /opt/vite-build/. public/build/
+fi
+
 exec "$@"
