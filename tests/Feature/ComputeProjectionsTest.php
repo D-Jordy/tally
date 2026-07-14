@@ -90,18 +90,52 @@ class ComputeProjectionsTest extends TestCase
     public function test_value_series_compounds_with_contribution(): void
     {
         $user = User::factory()->create();
-        $history = $this->oneDepositHistory(10000, 12000); // XIRR positive
-        $action = $this->makeAction([], 10000, $history);
 
-        // Manually set contribution in settings.
+        // Final value must differ from the deposit, otherwise XIRR is 0% and this test
+        // cannot tell any contribution model apart from another.
+        $history = $this->oneDepositHistory(10000, 12000);
+        $action = $this->makeAction([], 12000, $history);
+
         $user->settings = ['annual_contribution_eur' => 1000];
         $user->save();
 
         $result = $action->forUser($user, 1);
 
         $g = $result['growth_rate'];
-        $expected = 10000 * (1 + $g) + 1000;
-        $this->assertEqualsWithDelta($expected, $result['value_series'][1]['projected_value_eur'], 1.0);
+        $this->assertGreaterThan(0.01, $g);
+
+        // Contributions land through the year, so they earn about half a year of growth —
+        // not zero (added on 31 Dec) and not a full year (added on 1 Jan).
+        $midYear = 12000 * (1 + $g) + 1000 * (1 + $g / 2);
+        $endOfYear = 12000 * (1 + $g) + 1000;
+
+        $this->assertEqualsWithDelta($midYear, $result['value_series'][1]['projected_value_eur'], 1.0);
+        $this->assertNotEqualsWithDelta($endOfYear, $result['value_series'][1]['projected_value_eur'], 1.0);
+    }
+
+    public function test_dividends_scale_with_the_capital_contributed(): void
+    {
+        $user = User::factory()->create();
+        $history = $this->oneDepositHistory(10000, 12000);
+
+        // €600 of income on a €12k portfolio → a 5% yield that must hold as the pot grows.
+        $withoutContribution = $this->makeAction([], 12000, $history, 600.0)->forUser($user, 10, 0.0);
+        $withContribution = $this->makeAction([], 12000, $history, 600.0)->forUser($user, 10, 5000.0);
+
+        $endValue = fn (array $result): float => (float) collect($result['value_series'])->last()['projected_value_eur'];
+        $endDividend = fn (array $result): float => (float) collect($result['dividend_series'])->last()['projected_dividends_eur'];
+
+        // Regression: dividends used to compound off the starting figure alone, so depositing
+        // €5k a year grew the portfolio but threw off exactly as much income as depositing €0.
+        $this->assertGreaterThan($endValue($withoutContribution), $endValue($withContribution));
+        $this->assertGreaterThan($endDividend($withoutContribution), $endDividend($withContribution));
+
+        // Income tracks the capital: same yield on a bigger pot.
+        $this->assertEqualsWithDelta(
+            $endDividend($withContribution) / $endValue($withContribution),
+            $endDividend($withoutContribution) / $endValue($withoutContribution),
+            0.0001,
+        );
     }
 
     public function test_dividend_series_grows_at_same_rate(): void

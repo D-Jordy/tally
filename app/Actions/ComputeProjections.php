@@ -57,7 +57,7 @@ class ComputeProjections
         $startingDividendEur = (float) ($dividendData['summary']['next_12m_total_eur'] ?? 0);
 
         $valueSeries    = $this->buildValueSeries($totalValueEur, $yearlyRates, $annualContribution);
-        $dividendSeries = $this->buildDividendSeries($startingDividendEur, $yearlyRates);
+        $dividendSeries = $this->buildDividendSeries($startingDividendEur, $totalValueEur, $valueSeries);
 
         return [
             'horizon_years'          => $horizonYears,
@@ -208,24 +208,31 @@ class ComputeProjections
         $value  = $startValue;
 
         foreach ($rates as $year => $rate) {
-            $value    = $value * (1 + $rate) + $contribution;
+            // Contributions trickle in across the year rather than landing on 31 Dec, so
+            // credit them roughly half a year of growth instead of none at all.
+            $value    = $value * (1 + $rate) + $contribution * (1 + $rate / 2);
             $series[] = ['year' => $year, 'projected_value_eur' => round(max(0, $value), 2)];
         }
 
         return $series;
     }
 
-    /** @param array<int, float> $rates */
-    private function buildDividendSeries(float $startDividend, array $rates): array
+    /**
+     * Dividend income scales with the capital actually invested, so project it as a constant
+     * yield on the projected portfolio value. Compounding the starting dividend by the growth
+     * rate alone ignored contributions entirely — tripling the portfolio via deposits threw
+     * off exactly as much income as never depositing a cent. With no contributions this still
+     * collapses to the old startDividend * Π(1 + rate).
+     *
+     * @param  array<int, array{year: int, projected_value_eur: float}>  $valueSeries
+     */
+    private function buildDividendSeries(float $startDividend, float $startValue, array $valueSeries): array
     {
-        $series   = [['year' => 0, 'projected_dividends_eur' => round($startDividend, 2)]];
-        $dividend = $startDividend;
+        $yield = $startValue > 0 ? $startDividend / $startValue : 0.0;
 
-        foreach ($rates as $year => $rate) {
-            $dividend  = $dividend * (1 + $rate);
-            $series[]  = ['year' => $year, 'projected_dividends_eur' => round(max(0, $dividend), 2)];
-        }
-
-        return $series;
+        return array_map(fn (array $point): array => [
+            'year'                    => $point['year'],
+            'projected_dividends_eur' => round(max(0, $yield * $point['projected_value_eur']), 2),
+        ], $valueSeries);
     }
 }
