@@ -139,6 +139,8 @@ class Insights extends Page
             ->sortByDesc('current_value_eur')
             ->map(fn (array $position): array => [
                 'name' => $position['name'],
+                // Ticker labels the donut slice; the full name only shows on hover.
+                'symbol' => $position['symbol'] ?: $position['name'],
                 'value_eur' => round((float) $position['current_value_eur'], 2),
                 'weight' => round((float) $position['current_value_eur'] / $total, 4),
             ])

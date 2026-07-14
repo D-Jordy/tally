@@ -7,7 +7,7 @@ return [
     'allocation' => [
         'section' => 'Allocatie',
         'sector_heading' => 'Per sector',
-        'positions_heading' => 'Positiegroottes',
+        'positions_heading' => 'Per positie',
         'other' => 'Overig',
     ],
 

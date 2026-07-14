@@ -2,8 +2,13 @@
     $valueSeries = $this->data['value_series'] ?? [];
     $allocation = $this->allocation;
 
-    $toSlices = fn (array $rows, string $labelKey) => collect($rows)
-        ->map(fn (array $row): array => ['label' => $row[$labelKey], 'value' => $row['value_eur']])
+    // `label` is what the slice/legend shows (ticker), `title` what the tooltip shows.
+    $toSlices = fn (array $rows, string $labelKey, string $titleKey) => collect($rows)
+        ->map(fn (array $row): array => [
+            'label' => $row[$labelKey],
+            'title' => $row[$titleKey],
+            'value' => $row['value_eur'],
+        ])
         ->all();
 @endphp
 
@@ -11,8 +16,8 @@
     {{-- Allocation (current composition): sector split + position sizes, both as donuts. --}}
     @if (($allocation['total_eur'] ?? 0) > 0)
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start;">
-            @livewire(\App\Filament\Widgets\SectorAllocationChart::class, ['slices' => $toSlices($allocation['sectors'], 'sector')])
-            @livewire(\App\Filament\Widgets\PositionAllocationChart::class, ['slices' => $toSlices($allocation['positions'], 'name')])
+            @livewire(\App\Filament\Widgets\SectorAllocationChart::class, ['slices' => $toSlices($allocation['sectors'], 'sector', 'sector')])
+            @livewire(\App\Filament\Widgets\PositionAllocationChart::class, ['slices' => $toSlices($allocation['positions'], 'symbol', 'name')])
         </div>
     @endif
 

@@ -11,7 +11,7 @@ use Leandrocfe\FilamentApexCharts\Widgets\ApexChartWidget;
  */
 abstract class AllocationDonutChart extends ApexChartWidget
 {
-    /** @var array<int, array{label: string, value: float}> */
+    /** @var array<int, array{label: string, title: string, value: float}> */
     public array $slices = [];
 
     /**
@@ -60,15 +60,23 @@ abstract class AllocationDonutChart extends ApexChartWidget
     {
         $jsLocale = app()->getLocale() === 'nl' ? 'nl-NL' : 'en-US';
 
+        // Inlined *inside* the formatter on purpose: an array sitting in the options
+        // object gets deep-merged by the package and silently kills the donut render.
+        // Single-quoted, because this JS ends up in a double-quoted x-data attribute.
+        $titles = collect($this->slices)
+            ->pluck('title')
+            ->map(fn (string $title): string => "'".addcslashes($title, "'\\")."'")
+            ->implode(', ');
+
         return RawJs::make(<<<JS
         {
             dataLabels: {
                 enabled: true,
-                // Short name + share on the slice; long names are trimmed so they fit.
+                // Slices carry the short label (ticker); the full name is on hover.
                 formatter: function (value, opts) {
-                    var name = opts.w.globals.labels[opts.seriesIndex];
-                    if (name.length > 16) { name = name.slice(0, 15) + '…'; }
-                    return name + '  ' + value.toFixed(0) + '%';
+                    var label = opts.w.globals.labels[opts.seriesIndex];
+                    if (label.length > 18) { label = label.slice(0, 17) + '…'; }
+                    return label + '  ' + value.toFixed(0) + '%';
                 },
                 style: {
                     fontFamily: 'Inter, sans-serif',
@@ -79,6 +87,13 @@ abstract class AllocationDonutChart extends ApexChartWidget
             },
             tooltip: {
                 y: {
+                    title: {
+                        formatter: function (label, opts) {
+                            var titles = [{$titles}];
+                            var full = opts ? titles[opts.seriesIndex] : null;
+                            return (full || label) + ':';
+                        },
+                    },
                     formatter: function (value) {
                         return new Intl.NumberFormat('{$jsLocale}', {
                             style: 'currency', currency: 'EUR', maximumFractionDigits: 0,
