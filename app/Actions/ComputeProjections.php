@@ -9,8 +9,8 @@ use App\Support\XirrCalculator;
 class ComputeProjections
 {
     private const DEFAULT_GROWTH_RATE = 0.07;   // fallback if XIRR cannot converge
-    private const BLEND_PRIOR_WEIGHT  = 0.5;
-    private const BLEND_ANALYST_WEIGHT = 0.5;
+    private const BLEND_ANALYST_WEIGHT = 0.5;   // analyst share in year 1
+    private const ANALYST_DECAY        = 0.5;   // that share halves each year after
     private const GROWTH_RATE_MIN     = -0.50;
     private const GROWTH_RATE_MAX     = 0.50;
 
@@ -48,15 +48,16 @@ class ComputeProjections
 
         $priorRate   = $this->computePriorRate($user, $totalValueEur);
         $analystRate = $this->computeAnalystRate($positions, $priorRate);
-        $growthRate  = $this->blendRates($priorRate, $analystRate);
+        $yearlyRates = $this->yearlyRates($priorRate, $analystRate, $horizonYears);
+        $growthRate  = $this->effectiveRate($yearlyRates);
 
         $annualContribution = max(0.0, $annualContribution ?? (float) ($user->settings['annual_contribution_eur'] ?? 0));
 
         $dividendData       = $this->dividends->forUser($user);
         $startingDividendEur = (float) ($dividendData['summary']['next_12m_total_eur'] ?? 0);
 
-        $valueSeries    = $this->buildValueSeries($totalValueEur, $growthRate, $annualContribution, $horizonYears);
-        $dividendSeries = $this->buildDividendSeries($startingDividendEur, $growthRate, $horizonYears);
+        $valueSeries    = $this->buildValueSeries($totalValueEur, $yearlyRates, $annualContribution);
+        $dividendSeries = $this->buildDividendSeries($startingDividendEur, $yearlyRates);
 
         return [
             'horizon_years'          => $horizonYears,
@@ -157,38 +158,72 @@ class ComputeProjections
         return max(self::GROWTH_RATE_MIN, min(self::GROWTH_RATE_MAX, $weightedRate));
     }
 
-    private function blendRates(float $priorRate, float $analystRate): float
+    /**
+     * Analyst figures are 12-month price targets, so carrying one as a perpetual annual
+     * growth rate badly overstates the long run (a +50% target became +50% a year, for a
+     * decade). Weight the analyst rate at BLEND_ANALYST_WEIGHT in year 1 and halve that
+     * share every year after, so the projection decays onto the portfolio's own XIRR.
+     *
+     * @return array<int, float> growth rate per year, keyed 1..$horizonYears
+     */
+    private function yearlyRates(float $priorRate, float $analystRate, int $horizonYears): array
     {
-        $blended = self::BLEND_PRIOR_WEIGHT * $priorRate + self::BLEND_ANALYST_WEIGHT * $analystRate;
+        $rates = [];
 
-        return max(self::GROWTH_RATE_MIN, min(self::GROWTH_RATE_MAX, $blended));
+        for ($year = 1; $year <= $horizonYears; $year++) {
+            $analystWeight = self::BLEND_ANALYST_WEIGHT * (self::ANALYST_DECAY ** ($year - 1));
+            $rate          = $analystWeight * $analystRate + (1 - $analystWeight) * $priorRate;
+
+            $rates[$year] = max(self::GROWTH_RATE_MIN, min(self::GROWTH_RATE_MAX, $rate));
+        }
+
+        return $rates;
+    }
+
+    /**
+     * The single rate that, compounded over the horizon, reproduces the projection — so the
+     * headline percentage always agrees with the figure shown next to it.
+     *
+     * @param  array<int, float>  $rates
+     */
+    private function effectiveRate(array $rates): float
+    {
+        if ($rates === []) {
+            return 0.0;
+        }
+
+        $compounded = array_reduce($rates, fn (float $carry, float $rate): float => $carry * (1 + $rate), 1.0);
+
+        return $compounded ** (1 / count($rates)) - 1;
     }
 
     // -------------------------------------------------------------------------
     // Projection series
     // -------------------------------------------------------------------------
 
-    private function buildValueSeries(float $startValue, float $growthRate, float $contribution, int $horizonYears): array
+    /** @param array<int, float> $rates */
+    private function buildValueSeries(float $startValue, array $rates, float $contribution): array
     {
         $series = [['year' => 0, 'projected_value_eur' => round($startValue, 2)]];
         $value  = $startValue;
 
-        for ($y = 1; $y <= $horizonYears; $y++) {
-            $value    = $value * (1 + $growthRate) + $contribution;
-            $series[] = ['year' => $y, 'projected_value_eur' => round(max(0, $value), 2)];
+        foreach ($rates as $year => $rate) {
+            $value    = $value * (1 + $rate) + $contribution;
+            $series[] = ['year' => $year, 'projected_value_eur' => round(max(0, $value), 2)];
         }
 
         return $series;
     }
 
-    private function buildDividendSeries(float $startDividend, float $growthRate, int $horizonYears): array
+    /** @param array<int, float> $rates */
+    private function buildDividendSeries(float $startDividend, array $rates): array
     {
         $series   = [['year' => 0, 'projected_dividends_eur' => round($startDividend, 2)]];
         $dividend = $startDividend;
 
-        for ($y = 1; $y <= $horizonYears; $y++) {
-            $dividend  = $dividend * (1 + $growthRate);
-            $series[]  = ['year' => $y, 'projected_dividends_eur' => round(max(0, $dividend), 2)];
+        foreach ($rates as $year => $rate) {
+            $dividend  = $dividend * (1 + $rate);
+            $series[]  = ['year' => $year, 'projected_dividends_eur' => round(max(0, $dividend), 2)];
         }
 
         return $series;

@@ -135,6 +135,59 @@ class ComputeProjectionsTest extends TestCase
         $this->assertEqualsWithDelta($result['prior_rate'], $result['growth_rate'], 0.001);
     }
 
+    public function test_analyst_weight_decays_towards_the_prior_rate(): void
+    {
+        $user = User::factory()->create();
+        $instrument = Instrument::factory()->create(['analyst_target_price' => 150.0]);
+
+        $positions = [[
+            'instrument_id' => $instrument->id,
+            'latest_price' => 100.0,   // 50% upside → analyst implied = 0.50
+            'current_value_eur' => 10000.0,
+        ]];
+
+        $action = $this->makeAction($positions, 10000, $this->oneDepositHistory(10000, 11000));
+        $result = $action->forUser($user, 10);
+
+        $prior = $result['prior_rate'];
+        $series = collect($result['value_series'])->pluck('projected_value_eur', 'year');
+
+        // Year-on-year growth must shrink each year as the analyst share halves...
+        $growth = fn (int $year): float => $series[$year] / $series[$year - 1] - 1;
+
+        $this->assertGreaterThan($growth(2), $growth(1));
+        $this->assertGreaterThan($growth(3), $growth(2));
+
+        // ...and by year 10 the analyst share is ~0.1%, so growth is essentially the XIRR.
+        $this->assertEqualsWithDelta($prior, $growth(10), 0.005);
+
+        // A 12-month target must not compound as a decade-long rate: the headline figure is
+        // the effective CAGR, so it sits well under the year-1 blend of prior/analyst.
+        $yearOneBlend = 0.5 * $prior + 0.5 * $result['analyst_rate'];
+        $this->assertLessThan($yearOneBlend, $result['growth_rate']);
+    }
+
+    public function test_growth_rate_is_the_cagr_that_reproduces_the_projection(): void
+    {
+        $user = User::factory()->create();
+        $instrument = Instrument::factory()->create(['analyst_target_price' => 150.0]);
+
+        $positions = [[
+            'instrument_id' => $instrument->id,
+            'latest_price' => 100.0,
+            'current_value_eur' => 10000.0,
+        ]];
+
+        // No contribution, so the series is pure compounding and the CAGR must land on it.
+        $action = $this->makeAction($positions, 10000, $this->oneDepositHistory(10000, 11000));
+        $result = $action->forUser($user, 5, 0.0);
+
+        $start = (float) $result['starting_value_eur'];
+        $end = (float) collect($result['value_series'])->last()['projected_value_eur'];
+
+        $this->assertEqualsWithDelta($end, $start * (1 + $result['growth_rate']) ** 5, 1.0);
+    }
+
     public function test_analyst_target_influences_blended_rate(): void
     {
         $user = User::factory()->create();
