@@ -8,6 +8,13 @@ services:
       - /var/www/html/node_modules
       - vite_build:/var/www/html/public/build
     env_file: .env
+    # Project-unique DNS alias: `web` also sits on the shared external `stack`/`web`
+    # network where every Laravel project exposes a generic `app` service, so
+    # `fastcgi_pass app:9000` round-robins to foreign FPMs. nginx targets this instead.
+    networks:
+      default:
+        aliases:
+          - tally-app
     depends_on:
       db:
         condition: service_healthy
