@@ -3,6 +3,7 @@
 namespace App\Services\MarketData;
 
 use Carbon\Carbon;
+use GuzzleHttp\Cookie\CookieJar;
 use Illuminate\Support\Facades\Http;
 
 class YahooFinanceAdapter
@@ -10,6 +11,16 @@ class YahooFinanceAdapter
     private const CHART_URL         = 'https://query2.finance.yahoo.com/v8/finance/chart';
     private const SEARCH_URL        = 'https://query2.finance.yahoo.com/v1/finance/search';
     private const QUOTE_SUMMARY_URL = 'https://query2.finance.yahoo.com/v10/finance/quoteSummary';
+    private const COOKIE_URL        = 'https://fc.yahoo.com';
+    private const CRUMB_URL         = 'https://query2.finance.yahoo.com/v1/test/getcrumb';
+
+    /**
+     * quoteSummary is cookie+crumb gated — without these Yahoo answers 401 "Invalid Crumb"
+     * and every sector / analyst-target / dividend-calendar lookup silently returns null.
+     * Fetched once per adapter instance and reused for the whole sync run.
+     */
+    private ?CookieJar $cookies = null;
+    private ?string    $crumb   = null;
 
     // DEGIRO exchange code → preferred Yahoo symbol suffix
     private const EXCHANGE_SUFFIX = [
@@ -210,14 +221,53 @@ class YahooFinanceAdapter
     }
 
     /**
+     * Yahoo gates quoteSummary behind a session cookie plus a matching crumb. Grab a
+     * cookie from fc.yahoo.com, trade it for a crumb, and reuse both for this instance.
+     * Returns null if either step fails, so callers keep degrading to "no data".
+     */
+    private function crumb(): ?string
+    {
+        if ($this->crumb !== null) {
+            return $this->crumb;
+        }
+
+        $this->cookies = new CookieJar();
+
+        Http::withHeaders(['User-Agent' => 'Mozilla/5.0'])
+            ->withOptions(['cookies' => $this->cookies])
+            ->timeout(15)
+            ->get(self::COOKIE_URL);
+
+        $response = Http::withHeaders(['User-Agent' => 'Mozilla/5.0'])
+            ->withOptions(['cookies' => $this->cookies])
+            ->timeout(15)
+            ->get(self::CRUMB_URL);
+
+        if (!$response->successful()) {
+            return null;
+        }
+
+        $crumb = trim($response->body());
+
+        return $this->crumb = ($crumb === '' ? null : $crumb);
+    }
+
+    /**
      * Call a Yahoo Finance v10 quoteSummary module and return the first result's data,
      * or null on failure (so callers can treat missing data as non-fatal).
      */
     private function quoteSummary(string $symbol, string $module): ?array
     {
+        $crumb = $this->crumb();
+
+        if ($crumb === null) {
+            return null;
+        }
+
         $response = Http::withHeaders(['User-Agent' => 'Mozilla/5.0'])
+            ->withOptions(['cookies' => $this->cookies])
             ->timeout(15)
-            ->get(self::QUOTE_SUMMARY_URL . "/{$symbol}", ['modules' => $module]);
+            ->get(self::QUOTE_SUMMARY_URL . "/{$symbol}", ['modules' => $module, 'crumb' => $crumb]);
 
         if (!$response->successful()) {
             return null;
