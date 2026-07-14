@@ -32,19 +32,20 @@ class ComputeIncomingDividends
      *   confirmed: array<int, array>,
      *   events: array<int, array>,
      *   monthly: array<int, array{month: string, expected_eur: float}>,
-     *   summary: array{next_12m_total_eur: float, trailing_12m_received_eur: float, instrument_count: int, confirmed_count: int},
+     *   by_instrument: array<int, array>,
+     *   summary: array{next_12m_total_eur: float, trailing_12m_received_eur: float, instrument_count: int, confirmed_count: int, yield_on_cost: float|null},
      * }
      */
     public function forUser(User $user): array
     {
         $accountIds = $user->accounts()->pluck('id');
 
-        // Resolve current open positions: [instrument_id => quantity].
-        $positions = $this->portfolio->forUser($user)['positions'];
-        $qtyByInstrument = collect($positions)
-            ->filter(fn ($p) => ($p['quantity'] ?? 0) > 0)
-            ->keyBy('instrument_id')
-            ->map(fn ($p) => (float) $p['quantity']);
+        // Resolve current open positions: [instrument_id => position].
+        $openPositions = collect($this->portfolio->forUser($user)['positions'])
+            ->filter(fn (array $position): bool => ($position['quantity'] ?? 0) > 0)
+            ->keyBy('instrument_id');
+
+        $qtyByInstrument = $openPositions->map(fn (array $position): float => (float) $position['quantity']);
 
         if ($qtyByInstrument->isEmpty()) {
             return $this->emptyResult($accountIds);
@@ -177,19 +178,61 @@ class ComputeIncomingDividends
             array_column($events, 'instrument_id')
         ));
 
+        $byInstrument = $this->byInstrument(array_merge($confirmed, $events), $openPositions);
+
+        // Portfolio YOC: forward 12m income over the cost basis of the paying positions only —
+        // same denominator as the per-row YOC, so the total sits on the same scale as the table.
+        $payingCost = (float) collect($byInstrument)->sum('cost_basis_eur');
+
         $summary = [
             'next_12m_total_eur' => round($next12mTotal, 2),
             'trailing_12m_received_eur' => round($trailing, 2),
             'instrument_count' => count($allInstrumentIds),
             'confirmed_count' => count($confirmed),
+            'yield_on_cost' => $payingCost > 0 ? round($next12mTotal / $payingCost, 4) : null,
         ];
 
-        return compact('confirmed', 'events', 'monthly', 'summary');
+        return [...compact('confirmed', 'events', 'monthly', 'summary'), 'by_instrument' => $byInstrument];
     }
 
     // -------------------------------------------------------------------------
     // Private helpers
     // -------------------------------------------------------------------------
+
+    /**
+     * Roll the forward 12-month events up per instrument, with both yields:
+     * current yield on market value, and yield on cost (YOC) on the cost basis.
+     *
+     * @param  array<int, array<string, mixed>>  $events  confirmed + projected
+     * @param  Collection<int, array<string, mixed>>  $positions  keyed by instrument_id
+     * @return array<int, array<string, mixed>>
+     */
+    private function byInstrument(array $events, Collection $positions): array
+    {
+        return collect($events)
+            ->groupBy('instrument_id')
+            ->map(function (Collection $rows, int $instrumentId) use ($positions): array {
+                $position = $positions->get($instrumentId, []);
+                $forward = round((float) $rows->sum('expected_eur'), 2);
+                $cost = (float) ($position['cost_basis_eur'] ?? 0);
+                $value = (float) ($position['current_value_eur'] ?? 0);
+
+                return [
+                    'instrument_id' => $instrumentId,
+                    'name' => $rows->first()['name'],
+                    'yahoo_symbol' => $rows->first()['yahoo_symbol'],
+                    'quantity' => (float) ($position['quantity'] ?? 0),
+                    'forward_12m_eur' => $forward,
+                    'cost_basis_eur' => round($cost, 2),
+                    'current_value_eur' => $value > 0 ? round($value, 2) : null,
+                    'yield' => $value > 0 ? round($forward / $value, 4) : null,
+                    'yield_on_cost' => $cost > 0 ? round($forward / $cost, 4) : null,
+                ];
+            })
+            ->sortByDesc('forward_12m_eur')
+            ->values()
+            ->all();
+    }
 
     /**
      * Project forward dividend events for one instrument over the given horizon.
@@ -405,6 +448,7 @@ class ComputeIncomingDividends
         return [
             'confirmed' => [],
             'events' => [],
+            'by_instrument' => [],
             'monthly' => array_map(
                 fn ($i) => ['month' => now()->addMonths($i)->format('Y-m'), 'expected_eur' => 0.0],
                 range(0, 11)
@@ -414,6 +458,7 @@ class ComputeIncomingDividends
                 'trailing_12m_received_eur' => round($this->trailingReceivedEur($trailingRows, $fxRates), 2),
                 'instrument_count' => 0,
                 'confirmed_count' => 0,
+                'yield_on_cost' => null,
             ],
         ];
     }

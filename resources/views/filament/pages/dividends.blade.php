@@ -5,6 +5,7 @@
     $eur = fn ($value) => Number::currency((float) $value, 'EUR', $locale);
     $exDate = fn ($date) => \Illuminate\Support\Carbon::parse($date)->translatedFormat('d M Y');
     $perShare = fn ($row) => Number::format((float) $row['amount_per_share'], maxPrecision: 4, locale: $locale).' '.$row['currency'];
+    $pct = fn ($value) => $value !== null ? Number::percentage((float) $value * 100, maxPrecision: 2, locale: $locale) : '—';
 
     $head = 'font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--divio-muted,#9a9488);padding:10px 16px;font-weight:500;';
 @endphp
@@ -12,6 +13,35 @@
 <x-filament-panels::page>
     {{-- KPI row (stock Filament stats, divio-themed) --}}
     {{ $this->summaryStats }}
+
+    {{-- Dividend-paying positions: yield vs yield on cost --}}
+    @if ($this->byInstrument !== [])
+        <div style="background:var(--divio-card,#fcfbf8);border:1px solid var(--divio-hairline,#e6e3da);border-radius:8px;overflow:hidden;">
+            <div style="padding:14px 16px;border-bottom:2px solid var(--divio-ink,#1a1a1a);">
+                <span style="font-family:'Spectral',serif;font-weight:600;font-size:16px;color:var(--divio-ink,#1a1a1a);">{{ __('dividends.sections.positions') }}</span>
+            </div>
+            <table style="width:100%;border-collapse:collapse;font-family:'IBM Plex Mono',monospace;font-size:13px;">
+                <thead><tr>
+                    <th style="{{ $head }}text-align:left;">{{ __('dividends.table.instrument') }}</th>
+                    <th style="{{ $head }}text-align:right;">{{ __('dividends.table.value') }}</th>
+                    <th style="{{ $head }}text-align:right;">{{ __('dividends.table.yield') }}</th>
+                    <th style="{{ $head }}text-align:right;">{{ __('dividends.table.yoc') }}</th>
+                    <th style="{{ $head }}text-align:right;">{{ __('dividends.table.forward_12m') }}</th>
+                </tr></thead>
+                <tbody>
+                    @foreach ($this->byInstrument as $row)
+                        <tr style="border-top:1px solid var(--divio-row-divider,#ece9e0);">
+                            <td style="padding:10px 16px;font-family:'Inter',sans-serif;font-weight:600;color:var(--divio-ink,#1a1a1a);">{{ $row['name'] }}</td>
+                            <td style="padding:10px 16px;text-align:right;color:var(--divio-body,#2a2a2a);font-variant-numeric:tabular-nums;">{{ $row['current_value_eur'] !== null ? $eur($row['current_value_eur']) : '—' }}</td>
+                            <td style="padding:10px 16px;text-align:right;color:var(--divio-body,#2a2a2a);font-variant-numeric:tabular-nums;">{{ $pct($row['yield']) }}</td>
+                            <td style="padding:10px 16px;text-align:right;color:var(--divio-positive,#2f7d52);font-variant-numeric:tabular-nums;">{{ $pct($row['yield_on_cost']) }}</td>
+                            <td style="padding:10px 16px;text-align:right;color:var(--divio-body,#2a2a2a);font-variant-numeric:tabular-nums;">{{ $eur($row['forward_12m_eur']) }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    @endif
 
     {{-- Stacked bar --}}
     @livewire(\App\Filament\Widgets\DividendsBarChart::class)
