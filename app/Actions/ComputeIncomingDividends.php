@@ -12,14 +12,6 @@ use Illuminate\Support\Facades\DB;
 
 class ComputeIncomingDividends
 {
-    // Frequency buckets: median gap in days → annual pay count.
-    private const FREQUENCY_BUCKETS = [
-        ['max' => 45,  'times' => 12], // monthly
-        ['max' => 135, 'times' => 4],  // quarterly
-        ['max' => 270, 'times' => 2],  // semi-annual
-        ['max' => PHP_INT_MAX, 'times' => 1], // annual
-    ];
-
     // Confirmed events suppress projections within this many days.
     private const CONFIRMED_OVERLAP_DAYS = 20;
 
@@ -266,7 +258,13 @@ class ComputeIncomingDividends
             return [];
         }
 
-        $timesPerYear = $this->gapToFrequency($medianGap);
+        // Frequency = payments actually made in the trailing 12 months, not the median gap.
+        // Semi-annual EU payers (NN, Shell, …) space their two payments unevenly (~90d then
+        // ~275d), so the median gap lands in the annual bucket and half the income vanishes.
+        // ponytail: a special dividend in the window inflates the count by one; the median
+        // amount below already damps its value. Dedup near ex-dates if that ever bites.
+        $latestEx = $exDates->last();
+        $timesPerYear = max(1, $exDates->filter(fn (Carbon $date): bool => $date->gt($latestEx->copy()->subDays(365)))->count());
         $intervalDays = (int) round(365 / $timesPerYear);
 
         $latest = $history->sortBy('ex_date')->last();
@@ -331,17 +329,6 @@ class ComputeIncomingDividends
         return $count % 2 === 1
             ? (float) $sorted[$mid]
             : ($sorted[$mid - 1] + $sorted[$mid]) / 2.0;
-    }
-
-    private function gapToFrequency(float $medianGap): int
-    {
-        foreach (self::FREQUENCY_BUCKETS as $bucket) {
-            if ($medianGap <= $bucket['max']) {
-                return $bucket['times'];
-            }
-        }
-
-        return 1;
     }
 
     private function toEur(float $amount, string $currency, Collection $fxRates): ?float

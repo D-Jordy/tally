@@ -121,6 +121,29 @@ class ComputeIncomingDividendsTest extends TestCase
         $this->assertEqualsWithDelta($row['yield_on_cost'], $result['summary']['yield_on_cost'], 0.0001);
     }
 
+    public function test_uneven_semi_annual_payer_projects_two_events_per_year(): void
+    {
+        // NN-style: interim ~Aug, final ~May → gaps alternate ~90 and ~275 days.
+        // Only two stored rows, so the single measured gap (~275d) must not read as annual.
+        $instrument = Instrument::factory()->create(['yahoo_symbol' => 'NN.AS', 'quote_currency' => 'EUR']);
+        Dividend::factory()->create(['instrument_id' => $instrument->id, 'ex_date' => now()->subDays(337)->toDateString(), 'amount_per_share' => 1.38, 'currency' => 'EUR']);
+        Dividend::factory()->create(['instrument_id' => $instrument->id, 'ex_date' => now()->subDays(51)->toDateString(), 'amount_per_share' => 2.50, 'currency' => 'EUR']);
+
+        $user = User::factory()->create();
+        $action = $this->makeAction([
+            ['instrument_id' => $instrument->id, 'quantity' => 100, 'cost_basis_eur' => 1000.0, 'current_value_eur' => 1000.0],
+        ]);
+
+        $result = $action->forUser($user);
+
+        // Two payments in the trailing year → two projected events, not one.
+        $this->assertCount(2, $result['events']);
+
+        // Forward 12m ≈ 2 × median(1.38, 2.50) × 100 = 388, so yield ≈ 38.8% of the €1000 basis.
+        $row = $result['by_instrument'][0];
+        $this->assertEqualsWithDelta(388.0, $row['forward_12m_eur'], 1.0);
+    }
+
     public function test_projections_ignore_a_one_off_special_dividend(): void
     {
         $instrument = Instrument::factory()->create(['yahoo_symbol' => 'SAB.MC', 'quote_currency' => 'EUR']);
