@@ -28,6 +28,7 @@ class AppPanelProvider extends PanelProvider
             ->viteTheme('resources/css/filament/app/theme.css')
             ->brandName(config('app.name'))
             ->brandLogo(fn () => view('filament.brand'))
+            ->darkMode(false)
             ->topNavigation()
             ->login()
             ->registration()
