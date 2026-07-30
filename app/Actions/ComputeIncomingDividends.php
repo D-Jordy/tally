@@ -5,6 +5,7 @@ namespace App\Actions;
 use App\Models\CashMovement;
 use App\Models\Dividend;
 use App\Models\FxRate;
+use App\Models\Instrument;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -45,17 +46,20 @@ class ComputeIncomingDividends
 
         $instrumentIds = $qtyByInstrument->keys()->all();
 
-        // Load all stored dividends for held instruments.
+        $today = now()->startOfDay();
+        $horizon = now()->addMonths(12)->endOfDay();
+
+        // Payments already gone ex — the only rows the cadence and median-amount maths may
+        // see. A confirmed future row carries an *estimated* amount and would drag both the
+        // median and the trailing-12m frequency window forward off a date that hasn't happened.
         $allDividends = Dividend::whereIn('instrument_id', $instrumentIds)
+            ->where('ex_date', '<=', $today->toDateString())
             ->orderBy('ex_date')
             ->with('instrument')
             ->get()
             ->groupBy('instrument_id');
 
-        // Separate confirmed upcoming rows per instrument (stored by DividendSyncService).
-        $today = now()->startOfDay();
-        $horizon = now()->addMonths(12)->endOfDay();
-
+        // Confirmed upcoming rows per instrument (stored by DividendSyncService).
         $confirmedByInstrument = Dividend::whereIn('instrument_id', $instrumentIds)
             ->where('confirmed', true)
             ->where('ex_date', '>=', $today->toDateString())
@@ -170,18 +174,21 @@ class ComputeIncomingDividends
             array_column($events, 'instrument_id')
         ));
 
-        $byInstrument = $this->byInstrument(array_merge($confirmed, $events), $openPositions);
+        $providerYields = Instrument::whereIn('id', $instrumentIds)->pluck('dividend_yield', 'id');
 
-        // Portfolio YOC: forward 12m income over the cost basis of the paying positions only —
-        // same denominator as the per-row YOC, so the total sits on the same scale as the table.
+        $byInstrument = $this->byInstrument(array_merge($confirmed, $events), $openPositions, $providerYields);
+
+        // Portfolio YOC: annual income over the cost basis of the paying positions only —
+        // both sides summed from the table rows, so the KPI cannot disagree with them.
         $payingCost = (float) collect($byInstrument)->sum('cost_basis_eur');
+        $payingIncome = (float) collect($byInstrument)->sum('annual_income_eur');
 
         $summary = [
             'next_12m_total_eur' => round($next12mTotal, 2),
             'trailing_12m_received_eur' => round($trailing, 2),
             'instrument_count' => count($allInstrumentIds),
             'confirmed_count' => count($confirmed),
-            'yield_on_cost' => $payingCost > 0 ? round($next12mTotal / $payingCost, 4) : null,
+            'yield_on_cost' => $payingCost > 0 ? round($payingIncome / $payingCost, 4) : null,
         ];
 
         return [...compact('confirmed', 'events', 'monthly', 'summary'), 'by_instrument' => $byInstrument];
@@ -195,19 +202,34 @@ class ComputeIncomingDividends
      * Roll the forward 12-month events up per instrument, with both yields:
      * current yield on market value, and yield on cost (YOC) on the cost basis.
      *
+     * Both yields prefer the provider's own figure, so they match what every other
+     * platform quotes, and fall back to our cadence projection where Yahoo has none.
+     * `forward_12m_eur` stays projection-derived either way — it has to line up with the
+     * monthly calendar, which the provider's single annual number cannot produce.
+     *
      * @param  array<int, array<string, mixed>>  $events  confirmed + projected
      * @param  Collection<int, array<string, mixed>>  $positions  keyed by instrument_id
+     * @param  Collection<int, string|null>  $providerYields  dividend_yield keyed by instrument_id
      * @return array<int, array<string, mixed>>
      */
-    private function byInstrument(array $events, Collection $positions): array
+    private function byInstrument(array $events, Collection $positions, Collection $providerYields): array
     {
         return collect($events)
             ->groupBy('instrument_id')
-            ->map(function (Collection $rows, int $instrumentId) use ($positions): array {
+            ->map(function (Collection $rows, int $instrumentId) use ($positions, $providerYields): array {
                 $position = $positions->get($instrumentId, []);
                 $forward = round((float) $rows->sum('expected_eur'), 2);
                 $cost = (float) ($position['cost_basis_eur'] ?? 0);
                 $value = (float) ($position['current_value_eur'] ?? 0);
+
+                $providerYield = $providerYields->get($instrumentId);
+                $providerYield = $providerYield !== null ? (float) $providerYield : null;
+
+                // Annual income the yields are built on: the provider's yield restated in
+                // EUR against this position's market value, else our projected 12m total.
+                $annual = $providerYield !== null && $value > 0
+                    ? $providerYield * $value
+                    : $forward;
 
                 return [
                     'instrument_id' => $instrumentId,
@@ -215,10 +237,11 @@ class ComputeIncomingDividends
                     'yahoo_symbol' => $rows->first()['yahoo_symbol'],
                     'quantity' => (float) ($position['quantity'] ?? 0),
                     'forward_12m_eur' => $forward,
+                    'annual_income_eur' => round($annual, 2),
                     'cost_basis_eur' => round($cost, 2),
                     'current_value_eur' => $value > 0 ? round($value, 2) : null,
-                    'yield' => $value > 0 ? round($forward / $value, 4) : null,
-                    'yield_on_cost' => $cost > 0 ? round($forward / $cost, 4) : null,
+                    'yield' => $value > 0 ? round($annual / $value, 4) : null,
+                    'yield_on_cost' => $cost > 0 ? round($annual / $cost, 4) : null,
                 ];
             })
             ->sortByDesc('forward_12m_eur')

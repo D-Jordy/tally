@@ -50,6 +50,20 @@ class SyncMarketDataJob implements ShouldQueue
                     'error' => $e->getMessage(),
                 ]);
             }
+
+            try {
+                $dividendYield = $yahoo->dividendYield($instrument->yahoo_symbol);
+
+                // Only overwrite on a hit: a crumb hiccup returns null for every symbol and
+                // would otherwise wipe the yield the whole dividend table is measured against.
+                if ($dividendYield !== null) {
+                    $instrument->update(['dividend_yield' => $dividendYield]);
+                }
+            } catch (\Throwable $e) {
+                Log::error("SyncMarketData dividend yield: {$instrument->yahoo_symbol} failed", [
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
         $fxResults = $sync->syncAllFxRates();

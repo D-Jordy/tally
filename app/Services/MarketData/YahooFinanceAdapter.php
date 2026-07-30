@@ -166,6 +166,29 @@ class YahooFinanceAdapter
     }
 
     /**
+     * Fetch the provider's own dividend yield as a ratio (0.048 = 4.8%) from the
+     * summaryDetail module. This is the figure other platforms quote, so it is what the
+     * yield columns should agree with. Equities report `dividendYield`, ETFs report
+     * `yield`. Returns null when Yahoo has no figure (plenty of Amsterdam-listed ETFs)
+     * or the request fails, so callers can fall back to their own computation. Zero counts
+     * as "no figure" too: it only ever shows up as missing coverage, and a real 0% yield
+     * belongs to an instrument that has no dividends to report on in the first place.
+     */
+    public function dividendYield(string $symbol): ?float
+    {
+        $data = $this->quoteSummary($symbol, 'summaryDetail');
+
+        if ($data === null) {
+            return null;
+        }
+
+        $detail = $data['summaryDetail'] ?? [];
+        $raw    = (float) ($detail['dividendYield']['raw'] ?? $detail['yield']['raw'] ?? 0);
+
+        return $raw > 0 ? $raw : null;
+    }
+
+    /**
      * Fetch the instrument's sector from Yahoo's assetProfile module.
      * Returns null for funds/ETFs (no single sector) or on failure.
      */

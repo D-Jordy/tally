@@ -81,9 +81,131 @@ class DividendSyncTest extends TestCase
         $service->syncInstrument($instrument);
         $service->syncInstrument($instrument);
 
-        // Second run should resume from the next day after the stored ex_date,
-        // but the mock always returns the same row — upsert must not duplicate.
+        // Every run re-fetches the same window, so the upsert must not duplicate.
         $this->assertDatabaseCount('dividends', 1);
+    }
+
+    public function test_a_confirmed_future_row_does_not_freeze_the_history_fetch(): void
+    {
+        // Regression: the from-date used to resume after max(ex_date) over *all* rows,
+        // including the confirmed future one it had written itself. Yahoo then got
+        // period1 > period2, answered 400, and dividend sync died for good.
+        $instrument = Instrument::factory()->create(['yahoo_symbol' => 'AAPL']);
+
+        Dividend::factory()->create([
+            'instrument_id' => $instrument->id,
+            'ex_date' => now()->addDays(20)->toDateString(),
+            'amount_per_share' => 0.24,
+            'currency' => 'USD',
+            'confirmed' => true,
+        ]);
+
+        $this->mock(YahooFinanceAdapter::class, function ($mock) {
+            $mock->shouldReceive('dividends')
+                ->once()
+                ->with('AAPL', \Mockery::on(fn (string $fromDate): bool => $fromDate < now()->toDateString()))
+                ->andReturn([
+                    ['ex_date' => '2024-08-09', 'amount' => 0.25, 'currency' => 'USD'],
+                ]);
+            $mock->shouldReceive('upcomingDividend')->andReturn(null);
+        });
+
+        app(DividendSyncService::class)->syncInstrument($instrument);
+
+        $this->assertDatabaseHas('dividends', [
+            'instrument_id' => $instrument->id,
+            'ex_date' => '2024-08-09',
+        ]);
+    }
+
+    public function test_a_lapsed_confirmed_row_is_replaced_by_the_real_payment(): void
+    {
+        $instrument = Instrument::factory()->create(['yahoo_symbol' => 'AAPL']);
+
+        // Estimated at 0.24 for the 10th; Yahoo now reports 0.26 on the 11th.
+        Dividend::factory()->create([
+            'instrument_id' => $instrument->id,
+            'ex_date' => now()->subDays(10)->toDateString(),
+            'amount_per_share' => 0.24,
+            'currency' => 'USD',
+            'confirmed' => true,
+        ]);
+
+        $actualExDate = now()->subDays(9)->toDateString();
+
+        $this->mock(YahooFinanceAdapter::class, function ($mock) use ($actualExDate) {
+            $mock->shouldReceive('dividends')
+                ->andReturn([
+                    ['ex_date' => $actualExDate, 'amount' => 0.26, 'currency' => 'USD'],
+                ]);
+            $mock->shouldReceive('upcomingDividend')->andReturn(null);
+        });
+
+        app(DividendSyncService::class)->syncInstrument($instrument);
+
+        // One row, not the estimate plus a phantom payment a day later.
+        $this->assertDatabaseCount('dividends', 1);
+        $this->assertDatabaseHas('dividends', [
+            'ex_date' => $actualExDate,
+            'amount_per_share' => '0.26000000',
+            'confirmed' => false,
+        ]);
+    }
+
+    public function test_a_failed_fetch_does_not_delete_the_lapsed_confirmed_row(): void
+    {
+        $instrument = Instrument::factory()->create(['yahoo_symbol' => 'AAPL']);
+
+        $lapsedExDate = now()->subDays(10)->toDateString();
+
+        Dividend::factory()->create([
+            'instrument_id' => $instrument->id,
+            'ex_date' => $lapsedExDate,
+            'amount_per_share' => 0.24,
+            'currency' => 'USD',
+            'confirmed' => true,
+        ]);
+
+        $this->mock(YahooFinanceAdapter::class, function ($mock) {
+            $mock->shouldReceive('dividends')->andThrow(new \RuntimeException('Yahoo Finance HTTP 503'));
+        });
+
+        try {
+            app(DividendSyncService::class)->syncInstrument($instrument);
+            $this->fail('Expected the Yahoo failure to bubble up to the caller.');
+        } catch (\RuntimeException) {
+            // The job/command logs it and moves on to the next instrument.
+        }
+
+        $this->assertDatabaseHas('dividends', ['ex_date' => $lapsedExDate, 'confirmed' => true]);
+    }
+
+    public function test_the_upcoming_ex_date_still_syncs_when_history_comes_back_empty(): void
+    {
+        $instrument = Instrument::factory()->create(['yahoo_symbol' => 'AAPL']);
+
+        Dividend::factory()->create([
+            'instrument_id' => $instrument->id,
+            'ex_date' => now()->subDays(200)->toDateString(),
+            'amount_per_share' => 0.30,
+            'currency' => 'USD',
+        ]);
+
+        $futureExDate = now()->addDays(15)->toDateString();
+
+        $this->mock(YahooFinanceAdapter::class, function ($mock) use ($futureExDate) {
+            $mock->shouldReceive('dividends')->andReturn([]);
+            $mock->shouldReceive('upcomingDividend')
+                ->once()
+                ->andReturn(['ex_date' => $futureExDate, 'pay_date' => null]);
+        });
+
+        app(DividendSyncService::class)->syncInstrument($instrument);
+
+        $this->assertDatabaseHas('dividends', [
+            'ex_date' => $futureExDate,
+            'confirmed' => true,
+        ]);
     }
 
     public function test_instrument_without_yahoo_symbol_is_skipped(): void
