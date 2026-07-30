@@ -13,11 +13,12 @@ class Instrument extends Model
     protected $fillable = [
         'isin', 'name', 'symbol', 'yahoo_symbol',
         'quote_currency', 'sector', 'country', 'exchange',
-        'analyst_target_price', 'analyst_rating',
+        'analyst_target_price', 'analyst_rating', 'dividend_yield',
     ];
 
     protected $casts = [
         'analyst_target_price' => 'decimal:8',
+        'dividend_yield' => 'decimal:6',
     ];
 
     public function transactions(): HasMany

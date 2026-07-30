@@ -369,4 +369,62 @@ class ComputeIncomingDividendsTest extends TestCase
             $this->assertGreaterThan(20, $diff, 'Projected event too close to confirmed event');
         }
     }
+
+    public function test_a_confirmed_estimate_does_not_skew_the_projected_amount(): void
+    {
+        // Regression: the confirmed row's ex_date lies in the future and its amount is only
+        // an estimate, yet it used to be fed into the median-amount and cadence maths.
+        $instrument = Instrument::factory()->create(['yahoo_symbol' => 'TEST', 'quote_currency' => 'EUR']);
+        $this->seedQuarterlyDividends($instrument->id, 0.50, 'EUR');
+
+        Dividend::factory()->create([
+            'instrument_id' => $instrument->id,
+            'ex_date' => now()->addDays(300)->toDateString(),
+            'amount_per_share' => 5.00,
+            'currency' => 'EUR',
+            'confirmed' => true,
+        ]);
+
+        $user = User::factory()->create();
+        $action = $this->makeAction([
+            ['instrument_id' => $instrument->id, 'quantity' => 100],
+        ]);
+
+        $result = $action->forUser($user);
+
+        // Projections stay on the €0.50 median of actual payments, not the 5.00 estimate.
+        foreach ($result['events'] as $event) {
+            $this->assertEqualsWithDelta(50.00, $event['expected_eur'], 0.01);
+        }
+    }
+
+    public function test_the_providers_own_yield_wins_over_the_projection(): void
+    {
+        $instrument = Instrument::factory()->create([
+            'yahoo_symbol' => 'TEST',
+            'quote_currency' => 'EUR',
+            'dividend_yield' => 0.05,
+        ]);
+        $this->seedQuarterlyDividends($instrument->id, 0.50, 'EUR');
+
+        $user = User::factory()->create();
+        $action = $this->makeAction([[
+            'instrument_id' => $instrument->id,
+            'quantity' => 100,
+            'cost_basis_eur' => 1000.00,
+            'current_value_eur' => 2000.00,
+        ]]);
+
+        $result = $action->forUser($user);
+        $row = $result['by_instrument'][0];
+
+        // 5% of the €2000 market value = €100 annual, so YOC on a €1000 basis is 10%.
+        $this->assertEqualsWithDelta(0.05, $row['yield'], 0.0001);
+        $this->assertEqualsWithDelta(0.10, $row['yield_on_cost'], 0.0001);
+        $this->assertEqualsWithDelta(0.10, $result['summary']['yield_on_cost'], 0.0001);
+
+        // The calendar total stays projection-derived (4–5 × €50) — it has to match the
+        // monthly buckets, which a single annual figure cannot produce.
+        $this->assertGreaterThanOrEqual(200.00, $row['forward_12m_eur']);
+    }
 }

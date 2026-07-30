@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Services\MarketData\YahooFinanceAdapter;
+use GuzzleHttp\Promise\PromiseInterface;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -25,6 +26,34 @@ class YahooFinanceAdapterTest extends TestCase
         // sector / analyst / dividend-calendar lookup silently degraded to null.
         Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '/v10/finance/quoteSummary/ASML.AS')
             && str_contains($request->url(), 'crumb=abc123'));
+    }
+
+    public function test_dividend_yield_reads_equity_and_etf_fields_and_falls_back_to_null(): void
+    {
+        $summaryDetail = fn (array $detail): PromiseInterface => Http::response([
+            'quoteSummary' => ['result' => [['summaryDetail' => $detail]]],
+        ]);
+
+        Http::fake([
+            'fc.yahoo.com*' => Http::response('', 200),
+            '*/v1/test/getcrumb' => Http::response('abc123', 200),
+            // Equities report dividendYield, ETFs report yield instead.
+            '*/quoteSummary/NN.AS*' => $summaryDetail(['dividendYield' => ['raw' => 0.0485]]),
+            '*/quoteSummary/IEDY.L*' => $summaryDetail(['yield' => ['raw' => 0.0528]]),
+            // Yahoo has no figure for plenty of Amsterdam-listed ETFs — the caller must be
+            // able to tell that apart from "pays nothing" and fall back to its own maths.
+            '*/quoteSummary/VWRL.AS*' => $summaryDetail(['trailingAnnualDividendRate' => ['raw' => 0.0]]),
+            // A reported zero is missing coverage, not a 0% payer, and must not override
+            // a working projection with 0%.
+            '*/quoteSummary/ZERO.AS*' => $summaryDetail(['dividendYield' => ['raw' => 0]]),
+        ]);
+
+        $adapter = app(YahooFinanceAdapter::class);
+
+        $this->assertSame(0.0485, $adapter->dividendYield('NN.AS'));
+        $this->assertSame(0.0528, $adapter->dividendYield('IEDY.L'));
+        $this->assertNull($adapter->dividendYield('VWRL.AS'));
+        $this->assertNull($adapter->dividendYield('ZERO.AS'));
     }
 
     public function test_quote_summary_gives_up_when_no_crumb_can_be_fetched(): void

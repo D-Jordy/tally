@@ -4,13 +4,15 @@ namespace App\Services\MarketData;
 
 use App\Models\Dividend;
 use App\Models\Instrument;
-use App\Models\Transaction;
 use App\Services\Import\CurrencyNormaliser;
-use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class DividendSyncService
 {
+    // Always re-fetch this whole window. Long enough to infer payment cadence, and
+    // re-fetching keeps split-adjusted amounts and provider corrections in sync.
+    private const LOOKBACK_YEARS = 5;
+
     public function __construct(private YahooFinanceAdapter $yahoo) {}
 
     /**
@@ -24,13 +26,20 @@ class DividendSyncService
             return 0;
         }
 
-        $fromDate = $this->instrumentFromDate($instrument);
+        // Fetch before deleting anything: dividends() throws on any Yahoo error, and a
+        // transient failure must not cost us rows.
+        $rows = $this->yahoo->dividends(
+            $instrument->yahoo_symbol,
+            now()->subYears(self::LOOKBACK_YEARS)->toDateString()
+        );
 
-        $rows = $this->yahoo->dividends($instrument->yahoo_symbol, $fromDate);
-
-        if (empty($rows)) {
-            return 0;
-        }
+        // Drop confirmed rows whose ex-date has passed: their amount was only an
+        // estimate, and the real payment lands below as a historical row — possibly a
+        // day or two off Yahoo's forecast, which would leave a phantom extra payment.
+        Dividend::where('instrument_id', $instrument->id)
+            ->where('confirmed', true)
+            ->where('ex_date', '<', now()->toDateString())
+            ->delete();
 
         $now = now();
         $records = [];
@@ -48,6 +57,8 @@ class DividendSyncService
                 'pay_date' => null,
                 'amount_per_share' => $amount,
                 'currency' => $currency,
+                // A real payment overwrites the estimate that was standing in for it.
+                'confirmed' => false,
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
@@ -57,10 +68,12 @@ class DividendSyncService
             DB::table('dividends')->upsert(
                 $chunk,
                 ['instrument_id', 'ex_date'],
-                ['amount_per_share', 'currency', 'updated_at']
+                ['amount_per_share', 'currency', 'confirmed', 'updated_at']
             );
         }
 
+        // Runs even when the history fetch came back empty, so the upcoming ex/pay
+        // dates keep refreshing for instruments Yahoo has no dividend history for.
         $this->syncConfirmedUpcoming($instrument);
 
         return count($records);
@@ -110,27 +123,5 @@ class DividendSyncService
             ['instrument_id', 'ex_date'],
             ['pay_date', 'amount_per_share', 'currency', 'confirmed', 'updated_at']
         );
-    }
-
-    /**
-     * Earliest date to fetch dividends from. Resume after the latest stored ex_date;
-     * otherwise look back from the first transaction. A long lookback is needed so the
-     * forecast can infer payment cadence — fall back five years when there are no trades.
-     */
-    private function instrumentFromDate(Instrument $instrument): string
-    {
-        $latest = Dividend::where('instrument_id', $instrument->id)->max('ex_date');
-
-        if ($latest) {
-            return Carbon::parse($latest)->addDay()->toDateString();
-        }
-
-        $first = Transaction::where('instrument_id', $instrument->id)
-            ->orderBy('executed_at')
-            ->value('executed_at');
-
-        return $first
-            ? Carbon::parse($first)->toDateString()
-            : now()->subYears(5)->toDateString();
     }
 }
