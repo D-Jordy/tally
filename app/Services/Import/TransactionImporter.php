@@ -76,12 +76,6 @@ class TransactionImporter
             return;
         }
 
-        // Idempotency: skip if we've already imported this UUID
-        if ($externalId && Transaction::where('external_id', $externalId)->exists()) {
-            $this->skipped++;
-            return;
-        }
-
         $instrument = $this->resolveInstrument($row);
         $executedAt = $this->parseDateTime($row[0], $row[1]);
 
@@ -104,25 +98,36 @@ class TransactionImporter
         $fee         = $this->parseDecimal($row[14]);
         $totalEur    = $this->parseDecimal($row[15]);
 
-        Transaction::create([
-            'account_id'    => $account->id,
-            'instrument_id' => $instrument->id,
-            'executed_at'   => $executedAt,
-            'type'          => $type,
-            'quantity'      => $qty,
-            'price'         => $price,
-            'price_currency'=> $priceCurrency,
-            'fee'           => $fee ?? 0,
-            'trade_currency'=> $localCurrency ?: $priceCurrency,
-            'fx_rate_to_eur'=> $fxRate ?: null,
-            'local_value'   => $localValue,
-            'value_eur'     => $valueEur,
-            'total_eur'     => $totalEur,
-            'source'        => 'import',
-            'external_id'   => $externalId ?: null,
-        ]);
+        $dedupeHash = Transaction::makeDedupeHash(
+            $externalId, $executedAt, $instrument->id, $type, $qty, $price
+        );
 
-        $this->inserted++;
+        // Idempotent: match on (account_id, dedupe_hash) so re-importing an
+        // overlapping export updates the existing row instead of duplicating.
+        $transaction = Transaction::updateOrCreate(
+            [
+                'account_id'    => $account->id,
+                'dedupe_hash'   => $dedupeHash,
+            ],
+            [
+                'instrument_id' => $instrument->id,
+                'executed_at'   => $executedAt,
+                'type'          => $type,
+                'quantity'      => $qty,
+                'price'         => $price,
+                'price_currency'=> $priceCurrency,
+                'fee'           => $fee ?? 0,
+                'trade_currency'=> $localCurrency ?: $priceCurrency,
+                'fx_rate_to_eur'=> $fxRate ?: null,
+                'local_value'   => $localValue,
+                'value_eur'     => $valueEur,
+                'total_eur'     => $totalEur,
+                'source'        => 'import',
+                'external_id'   => $externalId ?: null,
+            ]
+        );
+
+        $transaction->wasRecentlyCreated ? $this->inserted++ : $this->skipped++;
     }
 
     private function resolveInstrument(array $row): Instrument
