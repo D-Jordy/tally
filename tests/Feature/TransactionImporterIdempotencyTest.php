@@ -55,6 +55,37 @@ class TransactionImporterIdempotencyTest extends TestCase
         $this->assertNull(Transaction::whereNull('dedupe_hash')->first());
     }
 
+    /**
+     * The real LGEN sale of 22-10-2025: one order id, two fills at the same second,
+     * quantity and price, told apart only by the execution venue and the fee. Both
+     * rows carry the UUID in column 16 — DEGIRO omits the blank Order ID column on
+     * most rows, so these are 17 columns wide, not 18.
+     */
+    public function test_partial_fills_of_one_order_are_kept_apart(): void
+    {
+        $account = Account::factory()->create();
+        $rows = [
+            '22-10-2025,10:23,LEGAL & GENERAL GROUP PLC,GB0005603997,LSE,MESI,-193,"240,5000",GBX,"46416,50",GBX,"533,22","87,0496","-1,33",,"531,89",abfc0b92-5318-4c99-89c4-624d560a5d9a',
+            '22-10-2025,10:23,LEGAL & GENERAL GROUP PLC,GB0005603997,LSE,XLON,-193,"240,5000",GBX,"46416,50",GBX,"533,22","87,0496","-1,33","-4,90","526,99",abfc0b92-5318-4c99-89c4-624d560a5d9a',
+        ];
+
+        $first = (new TransactionImporter)->import($account, $this->writeCsv($rows));
+
+        $this->assertSame(2, $first->inserted);
+        $this->assertSame(386.0, (float) Transaction::where('type', 'sell')->sum('quantity'));
+        $this->assertSame(
+            'abfc0b92-5318-4c99-89c4-624d560a5d9a',
+            Transaction::first()->external_id,
+        );
+
+        // Re-importing the overlapping export still matches both rows.
+        $second = (new TransactionImporter)->import($account, $this->writeCsv($rows));
+
+        $this->assertSame(0, $second->inserted);
+        $this->assertSame(2, $second->skipped);
+        $this->assertDatabaseCount('transactions', 2);
+    }
+
     public function test_the_same_export_imported_into_two_accounts_is_kept_separate(): void
     {
         $rows = [
