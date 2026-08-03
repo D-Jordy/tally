@@ -3,7 +3,6 @@
 namespace App\Services\Import;
 
 use App\Models\Account;
-use App\Models\CashMovement;
 use App\Models\Instrument;
 use App\Models\Transaction;
 use Carbon\Carbon;
@@ -30,13 +29,18 @@ use Illuminate\Support\Facades\Log;
  *  13  AutoFX Kosten
  *  14  Transactiekosten ... EUR
  *  15  Totaal EUR
- *  16  Order ID        (often blank)
- *  17  (real UUID — dedupe key)
+ *  16  Order ID        (the UUID, unless DEGIRO emitted a blank column here)
+ *  17  (the UUID when column 16 is blank)
+ *
+ * One order id covers every partial fill of that order, so it is stored but is
+ * not the idempotency key — see Transaction::makeDedupeHash().
  */
 class TransactionImporter
 {
     private int $inserted = 0;
-    private int $skipped  = 0;
+
+    private int $skipped = 0;
+
     private array $errors = [];
 
     public function import(Account $account, string $csvPath): ImportResult
@@ -51,8 +55,8 @@ class TransactionImporter
                     $this->errors[] = "Line {$lineNumber}: {$e->getMessage()}";
                     Log::warning('TransactionImporter row error', [
                         'account' => $account->id,
-                        'line'    => $lineNumber,
-                        'error'   => $e->getMessage(),
+                        'line' => $lineNumber,
+                        'error' => $e->getMessage(),
                     ]);
                 }
             }
@@ -69,8 +73,10 @@ class TransactionImporter
             return;
         }
 
-        $externalId = trim($row[17] ?? '');
-        $isin       = trim($row[3] ?? '');
+        // The UUID is the last column, but DEGIRO only emits the (blank) Order ID
+        // column on some rows, so it lands on index 17 or 16 depending on the row.
+        $externalId = trim($row[17] ?? '') ?: trim($row[16] ?? '');
+        $isin = trim($row[3] ?? '');
 
         if (empty($isin)) {
             return;
@@ -89,41 +95,41 @@ class TransactionImporter
             trim($row[10] ?? '')
         );
 
-        $qty         = $this->parseDecimal($row[6]);
-        $type        = (float) $qty >= 0 ? 'buy' : 'sell';
-        $qty         = abs((float) $qty);
+        $qty = $this->parseDecimal($row[6]);
+        $type = (float) $qty >= 0 ? 'buy' : 'sell';
+        $qty = abs((float) $qty);
 
-        $valueEur    = $this->parseDecimal($row[11]);
-        $fxRate      = $this->parseDecimal($row[12]);       // blank when already EUR
-        $fee         = $this->parseDecimal($row[14]);
-        $totalEur    = $this->parseDecimal($row[15]);
+        $valueEur = $this->parseDecimal($row[11]);
+        $fxRate = $this->parseDecimal($row[12]);       // blank when already EUR
+        $fee = $this->parseDecimal($row[14]);
+        $totalEur = $this->parseDecimal($row[15]);
 
         $dedupeHash = Transaction::makeDedupeHash(
-            $externalId, $executedAt, $instrument->id, $type, $qty, $price
+            $executedAt, $instrument->id, $type, $qty, $price, $fee ?? 0
         );
 
         // Idempotent: match on (account_id, dedupe_hash) so re-importing an
         // overlapping export updates the existing row instead of duplicating.
         $transaction = Transaction::updateOrCreate(
             [
-                'account_id'    => $account->id,
-                'dedupe_hash'   => $dedupeHash,
+                'account_id' => $account->id,
+                'dedupe_hash' => $dedupeHash,
             ],
             [
                 'instrument_id' => $instrument->id,
-                'executed_at'   => $executedAt,
-                'type'          => $type,
-                'quantity'      => $qty,
-                'price'         => $price,
-                'price_currency'=> $priceCurrency,
-                'fee'           => $fee ?? 0,
-                'trade_currency'=> $localCurrency ?: $priceCurrency,
-                'fx_rate_to_eur'=> $fxRate ?: null,
-                'local_value'   => $localValue,
-                'value_eur'     => $valueEur,
-                'total_eur'     => $totalEur,
-                'source'        => 'import',
-                'external_id'   => $externalId ?: null,
+                'executed_at' => $executedAt,
+                'type' => $type,
+                'quantity' => $qty,
+                'price' => $price,
+                'price_currency' => $priceCurrency,
+                'fee' => $fee ?? 0,
+                'trade_currency' => $localCurrency ?: $priceCurrency,
+                'fx_rate_to_eur' => $fxRate ?: null,
+                'local_value' => $localValue,
+                'value_eur' => $valueEur,
+                'total_eur' => $totalEur,
+                'source' => 'import',
+                'external_id' => $externalId ?: null,
             ]
         );
 
@@ -138,7 +144,7 @@ class TransactionImporter
         return Instrument::firstOrCreate(
             ['isin' => $isin],
             [
-                'name'     => $name,
+                'name' => $name,
                 'exchange' => trim($row[4] ?? ''),
             ]
         );
@@ -147,7 +153,7 @@ class TransactionImporter
     private function parseDateTime(string $date, string $time): Carbon
     {
         // Dutch format: DD-MM-YYYY HH:MM
-        return Carbon::createFromFormat('d-m-Y H:i', trim($date) . ' ' . trim($time));
+        return Carbon::createFromFormat('d-m-Y H:i', trim($date).' '.trim($time));
     }
 
     /**
@@ -186,7 +192,7 @@ class TransactionImporter
             if ($lineNumber === 1) {
                 continue; // skip header
             }
-            if (array_filter($row, fn($v) => trim($v) !== '') === []) {
+            if (array_filter($row, fn ($v) => trim($v) !== '') === []) {
                 continue; // skip blank lines
             }
             $rows[$lineNumber] = $row;

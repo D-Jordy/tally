@@ -12,28 +12,34 @@ class Transaction extends Model
     use HasFactory;
 
     /**
-     * Stable idempotency key for a trade. Prefers the broker's own UUID; DEGIRO
-     * leaves that column blank on some rows, so fall back to the normalised trade
-     * fields. Identical whether computed from a CSV row or from a stored row.
+     * Stable idempotency key for a trade, from the normalised trade fields only.
+     *
+     * Deliberately NOT keyed on the broker UUID: one DEGIRO order id covers every
+     * partial fill of that order, so keying on it collapses a split execution into
+     * a single trade. The fee is what separates two fills that are otherwise
+     * identical (same second, quantity and price, different execution venue).
+     *
+     * Every input is a stored column, so a row's hash is identical whether it is
+     * computed from a CSV row or recomputed from the database.
+     *
+     * ponytail: two fills identical down to the fee would still collapse; add the
+     * execution venue as a column if DEGIRO ever produces that.
      */
     public static function makeDedupeHash(
-        ?string $externalId,
         Carbon $executedAt,
         int $instrumentId,
         string $type,
         int|float|string $quantity,
         int|float|string $price,
+        int|float|string|null $fee = null,
     ): string {
-        if (trim((string) $externalId) !== '') {
-            return hash('sha256', 'external|'.trim((string) $externalId));
-        }
-
         return hash('sha256', implode('|', [
             $executedAt->format('Y-m-d H:i'),
             $instrumentId,
             $type,
             number_format((float) $quantity, 8, '.', ''),
             number_format((float) $price, 8, '.', ''),
+            number_format((float) $fee, 8, '.', ''),
         ]));
     }
 
