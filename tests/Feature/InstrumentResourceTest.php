@@ -136,6 +136,32 @@ class InstrumentResourceTest extends TestCase
         $this->assertSame('ASML.AS', $instrument->fresh()->yahoo_symbol);
     }
 
+    public function test_the_detail_url_uses_the_ticker_and_falls_back_to_the_id(): void
+    {
+        $user = User::factory()->create();
+        $resolved = $this->heldBy($user, ['yahoo_symbol' => 'ASML.AS']);
+        $unresolved = $this->heldBy($user, ['yahoo_symbol' => null]);
+
+        $this->assertStringEndsWith('/instruments/ASML.AS', InstrumentResource::getUrl('view', ['record' => $resolved]));
+        $this->assertStringEndsWith("/instruments/{$unresolved->id}", InstrumentResource::getUrl('view', ['record' => $unresolved]));
+
+        // Both have to resolve back — a ticker never matches the bigint id column,
+        // which Postgres treats as an error rather than a miss.
+        $this->actingAs($user)->get(InstrumentResource::getUrl('view', ['record' => $resolved]))->assertOk();
+        $this->actingAs($user)->get(InstrumentResource::getUrl('view', ['record' => $unresolved]))->assertOk();
+        $this->actingAs($user)->get(InstrumentResource::getUrl('edit', ['record' => $resolved]))->assertOk();
+    }
+
+    public function test_an_instrument_you_never_traded_is_not_reachable_by_ticker(): void
+    {
+        $user = User::factory()->create();
+        $theirs = $this->heldBy(User::factory()->create(), ['yahoo_symbol' => 'SHEL.AS']);
+
+        $this->actingAs($user)
+            ->get(InstrumentResource::getUrl('view', ['record' => $theirs]))
+            ->assertNotFound();
+    }
+
     public function test_the_detail_page_renders_for_a_held_and_a_sold_instrument(): void
     {
         $user = User::factory()->create();

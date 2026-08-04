@@ -33,7 +33,7 @@ class TransactionsTable
                     ->searchable()
                     ->wrap()
                     ->url(fn (Transaction $record): string => InstrumentResource::getUrl('view', [
-                        'record' => $record->instrument_id,
+                        'record' => $record->instrument,
                     ])),
                 TextColumn::make('type')
                     ->label(__('transactions.fields.type'))

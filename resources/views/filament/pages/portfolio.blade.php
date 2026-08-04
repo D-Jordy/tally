@@ -5,6 +5,11 @@
     $eur = fn ($value) => Number::currency((float) $value, 'EUR', $locale);
     $pct = fn ($value) => $value === null ? null : Number::percentage((float) $value * 100, maxPrecision: 1, locale: $locale);
     $signColor = fn ($value) => (float) $value >= 0 ? 'var(--divio-positive,#2f7d52)' : 'var(--divio-negative,#c0392b)';
+
+    // Ticker as the route key, id when the symbol was never resolved — see Instrument::getRouteKey().
+    $instrumentUrl = fn ($row) => \App\Filament\Resources\Instruments\InstrumentResource::getUrl('view', [
+        'record' => $row['yahoo_symbol'] ?: $row['instrument_id'],
+    ]);
 @endphp
 
 <x-filament-panels::page>
@@ -60,7 +65,7 @@
                     @foreach ($this->positions as $position)
                         <tr style="border-top:1px solid var(--divio-row-divider,#ece9e0);">
                             <td style="padding:10px 16px;text-align:left;font-family:'Inter',sans-serif;font-weight:600;">
-                                <a href="{{ \App\Filament\Resources\Instruments\InstrumentResource::getUrl('view', ['record' => $position['instrument_id']]) }}"
+                                <a href="{{ $instrumentUrl($position) }}"
                                    style="color:var(--divio-ink,#1a1a1a);text-decoration:none;border-bottom:1px solid var(--divio-row-divider,#ece9e0);">
                                     {{ $position['name'] }}
                                 </a>
