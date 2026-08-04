@@ -15,12 +15,12 @@ trait BuildsStats
 {
     protected function eur(float|int|string|null $value): string
     {
-        return Number::currency((float) $value, 'EUR', app()->getLocale());
+        return Number::currency((float) $value, 'EUR');
     }
 
     protected function pct(float|int|string|null $value): ?string
     {
-        return $value === null ? null : Number::percentage((float) $value * 100, maxPrecision: 1, locale: app()->getLocale());
+        return $value === null ? null : Number::percentage((float) $value * 100, maxPrecision: 1);
     }
 
     protected function signColor(float|int|string $value): string

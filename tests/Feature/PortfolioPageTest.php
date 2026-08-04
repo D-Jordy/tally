@@ -29,7 +29,7 @@ class PortfolioPageTest extends TestCase
     {
         $user = User::factory()->create();
         $account = Account::factory()->for($user)->create();
-        $instrument = Instrument::factory()->create(['name' => 'ASML Holding']);
+        $instrument = Instrument::factory()->create(['name' => 'ASML Holding', 'yahoo_symbol' => 'ASML.AS']);
         Transaction::factory()->for($account)->for($instrument)->create([
             'type' => 'buy',
             'quantity' => 10,
@@ -39,6 +39,7 @@ class PortfolioPageTest extends TestCase
             ->test(Portfolio::class)
             ->assertSuccessful()
             ->assertSee('ASML Holding')
+            ->assertSee('/instruments/ASML.AS')
             ->assertDontSee(__('portfolio.empty.title'));
     }
 

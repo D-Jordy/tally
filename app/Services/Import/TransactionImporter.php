@@ -110,30 +110,77 @@ class TransactionImporter
 
         // Idempotent: match on (account_id, dedupe_hash) so re-importing an
         // overlapping export updates the existing row instead of duplicating.
-        $transaction = Transaction::updateOrCreate(
-            [
-                'account_id' => $account->id,
-                'dedupe_hash' => $dedupeHash,
-            ],
-            [
-                'instrument_id' => $instrument->id,
-                'executed_at' => $executedAt,
-                'type' => $type,
-                'quantity' => $qty,
-                'price' => $price,
-                'price_currency' => $priceCurrency,
-                'fee' => $fee ?? 0,
-                'trade_currency' => $localCurrency ?: $priceCurrency,
-                'fx_rate_to_eur' => $fxRate ?: null,
-                'local_value' => $localValue,
-                'value_eur' => $valueEur,
-                'total_eur' => $totalEur,
-                'source' => 'import',
-                'external_id' => $externalId ?: null,
-            ]
-        );
+        // withTrashed() because a deleted row still claims its hash — see below.
+        $transaction = Transaction::withTrashed()->firstOrNew([
+            'account_id' => $account->id,
+            'dedupe_hash' => $dedupeHash,
+        ]);
+
+        if ($transaction->exists) {
+            // Both hand corrections outrank the CSV: a row deleted on purpose stays
+            // deleted, and a row edited on purpose keeps its edit. Re-importing the
+            // same export must not silently undo either.
+            if ($transaction->trashed() || $transaction->source === 'manual') {
+                $this->skipped++;
+
+                return;
+            }
+        } elseif ($candidate = $this->manualCandidate($account, $instrument, $executedAt, $type, $qty)) {
+            // No hash match, but this trade was already entered by hand before the
+            // export existed. The hash keys on the exact minute, price and fee, which
+            // nobody reproduces by hand, so fall back to the trade's identity and
+            // adopt that row: the CSV's figures are the accurate ones.
+            $transaction = $candidate;
+            $transaction->dedupe_hash = $dedupeHash;
+        }
+
+        $transaction->fill([
+            'instrument_id' => $instrument->id,
+            'executed_at' => $executedAt,
+            'type' => $type,
+            'quantity' => $qty,
+            'price' => $price,
+            'price_currency' => $priceCurrency,
+            'fee' => $fee ?? 0,
+            'trade_currency' => $localCurrency ?: $priceCurrency,
+            'fx_rate_to_eur' => $fxRate ?: null,
+            'local_value' => $localValue,
+            'value_eur' => $valueEur,
+            'total_eur' => $totalEur,
+            'source' => 'import',
+            'external_id' => $externalId ?: null,
+        ])->save();
 
         $transaction->wasRecentlyCreated ? $this->inserted++ : $this->skipped++;
+    }
+
+    /**
+     * A hand-entered row describing the same trade as this CSV row: same account,
+     * instrument, calendar day, direction and quantity. Deliberately ignores the
+     * time of day, price and fee — those are exactly the fields a human rounds or
+     * guesses, and they are what the hash keys on.
+     *
+     * Trashed rows are excluded: deleting one was a deliberate act, and adopting it
+     * would quietly bring it back.
+     *
+     * ponytail: quantity compared as a string via the decimal cast, which is exact
+     * for the 8dp the column stores. Widen to a tolerance if a broker ever reports
+     * a fill quantity that rounds differently from the one you would type.
+     */
+    private function manualCandidate(
+        Account $account,
+        Instrument $instrument,
+        Carbon $executedAt,
+        string $type,
+        string|float $quantity,
+    ): ?Transaction {
+        return Transaction::where('account_id', $account->id)
+            ->where('instrument_id', $instrument->id)
+            ->where('source', 'manual')
+            ->where('type', $type)
+            ->whereDate('executed_at', $executedAt->toDateString())
+            ->where('quantity', number_format((float) $quantity, 8, '.', ''))
+            ->first();
     }
 
     private function resolveInstrument(array $row): Instrument

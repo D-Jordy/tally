@@ -98,7 +98,6 @@ class FilamentInsightsPageTest extends TestCase
         $projected = fn (bool $reinvest): string => Number::currency(
             (float) end(app(ComputeProjections::class)->forUser($user->fresh(), 10, 0.0, $reinvest)['value_series'])['projected_value_eur'],
             'EUR',
-            app()->getLocale(),
         );
 
         Livewire::actingAs($user)
@@ -125,7 +124,7 @@ class FilamentInsightsPageTest extends TestCase
         $expected = function (int $years) use ($user): string {
             $series = app(ComputeProjections::class)->forUser($user->fresh(), $years)['value_series'];
 
-            return Number::currency((float) end($series)['projected_value_eur'], 'EUR', app()->getLocale());
+            return Number::currency((float) end($series)['projected_value_eur'], 'EUR');
         };
 
         $this->assertNotSame($expected(1), $expected(10));

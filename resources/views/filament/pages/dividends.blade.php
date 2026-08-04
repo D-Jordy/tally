@@ -1,13 +1,20 @@
 @php
     use Illuminate\Support\Number;
 
-    $locale = app()->getLocale();
-    $eur = fn ($value) => Number::currency((float) $value, 'EUR', $locale);
+    // No locale argument on the numbers: Number::useLocale() pins euro notation
+    // app-wide. Month names stay on the UI language, hence translatedFormat().
+    $eur = fn ($value) => Number::currency((float) $value, 'EUR');
     $exDate = fn ($date) => \Illuminate\Support\Carbon::parse($date)->translatedFormat('d M Y');
-    $perShare = fn ($row) => Number::format((float) $row['amount_per_share'], maxPrecision: 4, locale: $locale).' '.$row['currency'];
-    $pct = fn ($value) => $value !== null ? Number::percentage((float) $value * 100, maxPrecision: 2, locale: $locale) : '—';
+    $perShare = fn ($row) => Number::format((float) $row['amount_per_share'], maxPrecision: \App\Support\NumberFormat::MAX_DECIMALS).' '.$row['currency'];
+    $pct = fn ($value) => $value !== null ? Number::percentage((float) $value * 100, maxPrecision: \App\Support\NumberFormat::DECIMALS) : '—';
 
     $head = 'font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--divio-muted,#9a9488);padding:10px 16px;font-weight:500;';
+
+    // Ticker as the route key, id when the symbol was never resolved — see Instrument::getRouteKey().
+    $instrumentUrl = fn ($row) => \App\Filament\Resources\Instruments\InstrumentResource::getUrl('view', [
+        'record' => $row['yahoo_symbol'] ?: $row['instrument_id'],
+    ]);
+    $link = 'text-decoration:none;border-bottom:1px solid var(--divio-row-divider,#ece9e0);';
 @endphp
 
 <x-filament-panels::page>
@@ -31,7 +38,7 @@
                 <tbody>
                     @foreach ($this->byInstrument as $row)
                         <tr style="border-top:1px solid var(--divio-row-divider,#ece9e0);">
-                            <td style="padding:10px 16px;font-family:'Inter',sans-serif;font-weight:600;color:var(--divio-ink,#1a1a1a);">{{ $row['name'] }}</td>
+                            <td style="padding:10px 16px;font-family:'Inter',sans-serif;font-weight:600;"><a href="{{ $instrumentUrl($row) }}" style="color:var(--divio-ink,#1a1a1a);{{ $link }}">{{ $row['name'] }}</a></td>
                             <td style="padding:10px 16px;text-align:right;color:var(--divio-body,#2a2a2a);font-variant-numeric:tabular-nums;">{{ $row['current_value_eur'] !== null ? $eur($row['current_value_eur']) : '—' }}</td>
                             <td style="padding:10px 16px;text-align:right;color:var(--divio-body,#2a2a2a);font-variant-numeric:tabular-nums;">{{ $pct($row['yield']) }}</td>
                             <td style="padding:10px 16px;text-align:right;color:var(--divio-positive,#2f7d52);font-variant-numeric:tabular-nums;">{{ $pct($row['yield_on_cost']) }}</td>
@@ -67,7 +74,7 @@
                     <tbody>
                         @foreach ($this->confirmed as $row)
                             <tr style="border-top:1px solid var(--divio-row-divider,#ece9e0);">
-                                <td style="padding:10px 16px;font-family:'Inter',sans-serif;font-weight:600;color:var(--divio-ink,#1a1a1a);">{{ $row['name'] }}</td>
+                                <td style="padding:10px 16px;font-family:'Inter',sans-serif;font-weight:600;"><a href="{{ $instrumentUrl($row) }}" style="color:var(--divio-ink,#1a1a1a);{{ $link }}">{{ $row['name'] }}</a></td>
                                 <td style="padding:10px 16px;text-align:right;color:var(--divio-body,#2a2a2a);font-variant-numeric:tabular-nums;">{{ $exDate($row['ex_date']) }}</td>
                                 <td style="padding:10px 16px;text-align:right;color:var(--divio-body,#2a2a2a);font-variant-numeric:tabular-nums;">{{ $perShare($row) }}</td>
                                 <td style="padding:10px 16px;text-align:right;color:var(--divio-body,#2a2a2a);font-variant-numeric:tabular-nums;">{{ $row['expected_eur'] !== null ? $eur($row['expected_eur']) : '—' }}</td>
@@ -97,7 +104,7 @@
                     <tbody>
                         @foreach ($this->projected as $row)
                             <tr style="border-top:1px solid var(--divio-dashed,#d8d2c4);">
-                                <td style="padding:10px 16px;font-family:'Inter',sans-serif;font-weight:600;font-style:italic;">{{ $row['name'] }}</td>
+                                <td style="padding:10px 16px;font-family:'Inter',sans-serif;font-weight:600;font-style:italic;"><a href="{{ $instrumentUrl($row) }}" style="color:inherit;{{ $link }}">{{ $row['name'] }}</a></td>
                                 <td style="padding:10px 16px;text-align:right;font-variant-numeric:tabular-nums;">{{ $exDate($row['ex_date']) }}</td>
                                 <td style="padding:10px 16px;text-align:right;font-variant-numeric:tabular-nums;">{{ $perShare($row) }}</td>
                                 <td style="padding:10px 16px;text-align:right;font-variant-numeric:tabular-nums;">{{ $row['expected_eur'] !== null ? $eur($row['expected_eur']) : '—' }}</td>

@@ -29,7 +29,7 @@ class FilamentDividendsPageTest extends TestCase
     {
         $user = User::factory()->create();
         $account = Account::factory()->for($user)->create();
-        $instrument = Instrument::factory()->create(['name' => 'Royal Dutch Shell']);
+        $instrument = Instrument::factory()->create(['name' => 'Royal Dutch Shell', 'yahoo_symbol' => 'SHEL.AS']);
         Transaction::factory()->for($account)->for($instrument)->create(['type' => 'buy', 'quantity' => 100]);
         Dividend::factory()->for($instrument)->create([
             'ex_date' => now()->addMonth()->toDateString(),
@@ -42,6 +42,7 @@ class FilamentDividendsPageTest extends TestCase
             ->test(Dividends::class)
             ->assertSuccessful()
             ->assertSee('Royal Dutch Shell')
+            ->assertSee('/instruments/SHEL.AS')
             ->assertSee('CONFIRMED');
     }
 }
