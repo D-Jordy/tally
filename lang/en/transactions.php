@@ -14,6 +14,8 @@ return [
     'fields' => [
         'account' => 'Account',
         'instrument' => 'Instrument',
+        'instrument_name' => 'Name',
+        'instrument_isin' => 'ISIN',
         'executed_at' => 'Executed at',
         'type' => 'Type',
         'quantity' => 'Quantity',
@@ -43,5 +45,10 @@ return [
     'filters' => [
         'from' => 'From',
         'until' => 'Until',
+    ],
+
+    'validation' => [
+        'duplicate' => 'This trade is already on file for this account — edit the existing transaction instead.',
+        'duplicate_deleted' => 'This trade was deleted earlier. Restore it from the trashed filter instead of entering it again.',
     ],
 ];

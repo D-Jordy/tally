@@ -110,14 +110,16 @@ class TransactionImporter
 
         // Idempotent: match on (account_id, dedupe_hash) so re-importing an
         // overlapping export updates the existing row instead of duplicating.
-        $transaction = Transaction::firstOrNew([
+        // withTrashed() because a deleted row still claims its hash — see below.
+        $transaction = Transaction::withTrashed()->firstOrNew([
             'account_id' => $account->id,
             'dedupe_hash' => $dedupeHash,
         ]);
 
-        // A row corrected by hand outranks the CSV — re-importing the same export
-        // must not silently undo the correction.
-        if ($transaction->exists && $transaction->source === 'manual') {
+        // Both hand corrections outrank the CSV: a row deleted on purpose stays
+        // deleted, and a row edited on purpose keeps its edit. Re-importing the
+        // same export must not silently undo either.
+        if ($transaction->exists && ($transaction->trashed() || $transaction->source === 'manual')) {
             $this->skipped++;
 
             return;

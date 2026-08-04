@@ -14,6 +14,7 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class TransactionResource extends Resource
 {
@@ -42,10 +43,15 @@ class TransactionResource extends Resource
      * Transactions have no user_id of their own — they hang off an account. The
      * BelongsToUser global scope on Account turns this whereHas into the auth
      * filter, so there is nothing extra to maintain here.
+     *
+     * Soft-deleted rows stay reachable so the trashed filter can surface them; the
+     * filter itself hides them by default.
      */
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->whereHas('account');
+        return parent::getEloquentQuery()
+            ->whereHas('account')
+            ->withoutGlobalScopes([SoftDeletingScope::class]);
     }
 
     public static function form(Schema $schema): Schema
