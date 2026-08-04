@@ -12,6 +12,8 @@ use App\Models\Instrument;
 use App\Models\PriceHistory;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\MarketData\DividendSyncService;
+use App\Services\MarketData\PriceSyncService;
 use App\Services\MarketData\YahooFinanceAdapter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -66,6 +68,15 @@ class InstrumentResourceTest extends TestCase
         ]);
         Dividend::factory()->for($instrument)->create();
 
+        // Instruments are shared, so the wiped history has to be refilled right away
+        // rather than leaving every other holder with an empty chart until 02:00.
+        $prices = Mockery::mock(PriceSyncService::class);
+        $prices->shouldReceive('syncInstrument')->once()->andReturn(0);
+        $dividends = Mockery::mock(DividendSyncService::class);
+        $dividends->shouldReceive('syncInstrument')->once()->andReturn(0);
+        $this->app->instance(PriceSyncService::class, $prices);
+        $this->app->instance(DividendSyncService::class, $dividends);
+
         Livewire::actingAs($user)
             ->test(EditInstrument::class, ['record' => $instrument->getRouteKey()])
             ->set('data.yahoo_symbol', 'ASML.AS')
@@ -105,6 +116,24 @@ class InstrumentResourceTest extends TestCase
         dispatch_sync(new ResolveInstrumentSymbolsJob);
 
         $this->assertSame('Diversified', $instrument->fresh()->sector);
+    }
+
+    public function test_a_failing_resync_does_not_lose_the_saved_symbol(): void
+    {
+        $user = User::factory()->create();
+        $instrument = $this->heldBy($user, ['yahoo_symbol' => 'WRONG.AS']);
+
+        $prices = Mockery::mock(PriceSyncService::class);
+        $prices->shouldReceive('syncInstrument')->andThrow(new \RuntimeException('Yahoo down'));
+        $this->app->instance(PriceSyncService::class, $prices);
+
+        Livewire::actingAs($user)
+            ->test(EditInstrument::class, ['record' => $instrument->getRouteKey()])
+            ->set('data.yahoo_symbol', 'ASML.AS')
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->assertSame('ASML.AS', $instrument->fresh()->yahoo_symbol);
     }
 
     public function test_the_detail_page_renders_for_a_held_and_a_sold_instrument(): void

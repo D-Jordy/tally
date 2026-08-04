@@ -63,4 +63,8 @@ return [
         'heading' => 'Price history',
         'close' => 'Close',
     ],
+
+    'resync' => [
+        'failed' => 'The symbol was saved, but refetching prices and dividends failed. They will be picked up by the next refresh.',
+    ],
 ];

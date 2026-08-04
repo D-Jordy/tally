@@ -63,4 +63,8 @@ return [
         'heading' => 'Koershistorie',
         'close' => 'Slotkoers',
     ],
+
+    'resync' => [
+        'failed' => 'Het symbool is opgeslagen, maar het opnieuw ophalen van koersen en dividenden is mislukt. De volgende verversing pikt ze op.',
+    ],
 ];

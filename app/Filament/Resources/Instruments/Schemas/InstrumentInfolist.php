@@ -90,18 +90,25 @@ class InstrumentInfolist
     }
 
     /**
+     * Memoised per instrument, so the seven entries above share one computation
+     * without a second record on the same page silently reading the first one's
+     * figures. Request-scoped: a static property lives exactly as long as needed.
+     *
+     * @var array<string, array<int, array<string, mixed>>>
+     */
+    private static array $memo = [];
+
+    /**
      * The open position for this instrument, from the same action the portfolio
      * page uses. Empty array when the position is closed or never held.
-     *
-     * ponytail: once() memoises for the request, so the seven entries above share
-     * one computation. The page only ever renders a single record.
      *
      * @return array<string, mixed>
      */
     private static function position(Instrument $record): array
     {
-        return once(fn (): array => collect(app(ComputePortfolio::class)->forUser(auth()->user())['positions'])
-            ->firstWhere('instrument_id', $record->id) ?? []);
+        return self::$memo['position'][$record->id] ??= collect(
+            app(ComputePortfolio::class)->forUser(auth()->user())['positions']
+        )->firstWhere('instrument_id', $record->id) ?? [];
     }
 
     /**
@@ -112,8 +119,9 @@ class InstrumentInfolist
      */
     private static function dividendFigures(Instrument $record): array
     {
-        return once(fn (): array => collect(app(ComputeIncomingDividends::class)->forUser(auth()->user())['by_instrument'])
-            ->firstWhere('instrument_id', $record->id) ?? []);
+        return self::$memo['dividends'][$record->id] ??= collect(
+            app(ComputeIncomingDividends::class)->forUser(auth()->user())['by_instrument']
+        )->firstWhere('instrument_id', $record->id) ?? [];
     }
 
     private static function number(Instrument $record, string $key, int $decimals): ?string
