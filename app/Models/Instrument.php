@@ -21,6 +21,22 @@ class Instrument extends Model
         'dividend_yield' => 'decimal:6',
     ];
 
+    /**
+     * Prices and dividends are only meaningful for the symbol they were fetched
+     * under, so repointing an instrument at a different symbol drops them — the
+     * next SyncMarketDataJob refills from the corrected symbol. Without this a
+     * wrong resolution keeps poisoning the position after it has been fixed.
+     */
+    protected static function booted(): void
+    {
+        static::updated(function (self $instrument): void {
+            if ($instrument->wasChanged('yahoo_symbol')) {
+                $instrument->priceHistory()->delete();
+                $instrument->dividends()->delete();
+            }
+        });
+    }
+
     public function transactions(): HasMany
     {
         return $this->hasMany(Transaction::class);
