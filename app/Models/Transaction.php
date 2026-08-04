@@ -12,6 +12,28 @@ class Transaction extends Model
     use HasFactory;
 
     /**
+     * A hand-entered row gets a hash too, so importing a CSV that later contains
+     * the same trade matches it instead of duplicating it.
+     *
+     * The hash is only ever set on insert, never recomputed on update: it is an
+     * idempotency key, not a fingerprint. Recomputing it after a correction would
+     * make a re-import of the same CSV miss the row and insert a second copy.
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (self $transaction): void {
+            $transaction->dedupe_hash ??= self::makeDedupeHash(
+                $transaction->executed_at,
+                (int) $transaction->instrument_id,
+                (string) $transaction->type,
+                $transaction->quantity,
+                $transaction->price,
+                $transaction->fee ?? 0,
+            );
+        });
+    }
+
+    /**
      * Stable idempotency key for a trade, from the normalised trade fields only.
      *
      * Deliberately NOT keyed on the broker UUID: one DEGIRO order id covers every

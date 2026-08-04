@@ -110,28 +110,35 @@ class TransactionImporter
 
         // Idempotent: match on (account_id, dedupe_hash) so re-importing an
         // overlapping export updates the existing row instead of duplicating.
-        $transaction = Transaction::updateOrCreate(
-            [
-                'account_id' => $account->id,
-                'dedupe_hash' => $dedupeHash,
-            ],
-            [
-                'instrument_id' => $instrument->id,
-                'executed_at' => $executedAt,
-                'type' => $type,
-                'quantity' => $qty,
-                'price' => $price,
-                'price_currency' => $priceCurrency,
-                'fee' => $fee ?? 0,
-                'trade_currency' => $localCurrency ?: $priceCurrency,
-                'fx_rate_to_eur' => $fxRate ?: null,
-                'local_value' => $localValue,
-                'value_eur' => $valueEur,
-                'total_eur' => $totalEur,
-                'source' => 'import',
-                'external_id' => $externalId ?: null,
-            ]
-        );
+        $transaction = Transaction::firstOrNew([
+            'account_id' => $account->id,
+            'dedupe_hash' => $dedupeHash,
+        ]);
+
+        // A row corrected by hand outranks the CSV — re-importing the same export
+        // must not silently undo the correction.
+        if ($transaction->exists && $transaction->source === 'manual') {
+            $this->skipped++;
+
+            return;
+        }
+
+        $transaction->fill([
+            'instrument_id' => $instrument->id,
+            'executed_at' => $executedAt,
+            'type' => $type,
+            'quantity' => $qty,
+            'price' => $price,
+            'price_currency' => $priceCurrency,
+            'fee' => $fee ?? 0,
+            'trade_currency' => $localCurrency ?: $priceCurrency,
+            'fx_rate_to_eur' => $fxRate ?: null,
+            'local_value' => $localValue,
+            'value_eur' => $valueEur,
+            'total_eur' => $totalEur,
+            'source' => 'import',
+            'external_id' => $externalId ?: null,
+        ])->save();
 
         $transaction->wasRecentlyCreated ? $this->inserted++ : $this->skipped++;
     }
