@@ -52,7 +52,7 @@ class InstrumentsTable
                     ->label(__('instruments.fields.dividend_yield'))
                     ->formatStateUsing(fn (?string $state): string => $state === null
                         ? '—'
-                        : Number::percentage((float) $state * 100, NumberFormat::DECIMALS))
+                        : Number::percentage((float) $state * 100, maxPrecision: NumberFormat::DECIMALS))
                     ->alignEnd()
                     ->sortable(),
             ])

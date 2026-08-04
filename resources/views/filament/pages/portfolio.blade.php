@@ -70,12 +70,12 @@
                                     {{ $position['name'] }}
                                 </a>
                             </td>
-                            <td style="{{ $cell }}text-align:right;">{{ Number::format((float) $position['quantity'], maxPrecision: \App\Support\NumberFormat::DECIMALS) }}</td>
+                            <td style="{{ $cell }}text-align:right;">{{ Number::format((float) $position['quantity'], maxPrecision: \App\Support\NumberFormat::MAX_DECIMALS) }}</td>
                             <td style="{{ $cell }}text-align:right;">
-                                {{ $position['avg_cost_per_share'] !== null ? Number::format((float) $position['avg_cost_per_share'], maxPrecision: 2).' '.$position['price_currency'] : '—' }}
+                                {{ $position['avg_cost_per_share'] !== null ? Number::format((float) $position['avg_cost_per_share'], maxPrecision: \App\Support\NumberFormat::MAX_DECIMALS).' '.$position['price_currency'] : '—' }}
                             </td>
                             <td style="{{ $cell }}text-align:right;">
-                                {{ $position['latest_price'] !== null ? Number::format((float) $position['latest_price'], maxPrecision: 2).' '.$position['latest_price_currency'] : '—' }}
+                                {{ $position['latest_price'] !== null ? Number::format((float) $position['latest_price'], maxPrecision: \App\Support\NumberFormat::MAX_DECIMALS).' '.$position['latest_price_currency'] : '—' }}
                             </td>
                             <td style="{{ $cell }}text-align:right;">{{ $position['current_value_eur'] !== null ? $eur($position['current_value_eur']) : '—' }}</td>
                             <td style="{{ $cell }}text-align:right;color:{{ $position['unrealized_gain_eur'] !== null ? $signColor($position['unrealized_gain_eur']) : 'var(--divio-faint,#c4bfb3)' }};">

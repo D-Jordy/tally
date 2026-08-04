@@ -11,13 +11,25 @@ namespace App\Support;
  * also covers Filament's ->money() and ->numeric() columns since those call
  * Illuminate\Support\Number underneath. The JS variant is for the chart
  * tooltips, which format client-side through Intl.NumberFormat.
+ *
+ * Two shapes of number:
+ *   - Money keeps a fixed DECIMALS, because € 24.839,20 reads as an amount and
+ *     € 24.839,2 does not. Number::currency() does this on its own.
+ *   - Everything else — quantities, prices, per-share dividends — is shown as
+ *     precisely as that instrument needs, up to MAX_DECIMALS, with trailing
+ *     zeros dropped. Pass it as `maxPrecision`/`maxDecimalPlaces`, never as a
+ *     fixed decimal count: 60 shares should read 60, and a 0,0525 dividend
+ *     must not round away to 0,05.
  */
 final class NumberFormat
 {
     public const LOCALE = 'nl_NL';
 
-    /** Decimals shown for money, quantities and prices alike. */
+    /** Fixed decimals for money and percentages. */
     public const DECIMALS = 2;
+
+    /** Ceiling for trimmed numbers: quantities, prices, per-share amounts. */
+    public const MAX_DECIMALS = 4;
 
     public static function js(): string
     {

@@ -39,11 +39,11 @@ class TransactionsRelationManager extends RelationManager
                     ->formatStateUsing(fn (string $state): string => __("transactions.types.{$state}")),
                 TextColumn::make('quantity')
                     ->label(__('transactions.fields.quantity'))
-                    ->numeric(decimalPlaces: NumberFormat::DECIMALS)
+                    ->numeric(maxDecimalPlaces: NumberFormat::MAX_DECIMALS)
                     ->alignEnd(),
                 TextColumn::make('price')
                     ->label(__('transactions.fields.price'))
-                    ->numeric(decimalPlaces: NumberFormat::DECIMALS)
+                    ->numeric(maxDecimalPlaces: NumberFormat::MAX_DECIMALS)
                     ->alignEnd(),
                 TextColumn::make('total_eur')
                     ->label(__('transactions.fields.total_eur'))

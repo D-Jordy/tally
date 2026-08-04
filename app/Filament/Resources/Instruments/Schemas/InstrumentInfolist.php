@@ -78,7 +78,7 @@ class InstrumentInfolist
                         TextEntry::make('analyst_target_price')
                             ->label(__('instruments.fields.analyst_target_price'))
                             ->placeholder('—')
-                            ->numeric(decimalPlaces: NumberFormat::DECIMALS),
+                            ->numeric(maxDecimalPlaces: NumberFormat::MAX_DECIMALS),
                         TextEntry::make('analyst_rating')
                             ->label(__('instruments.fields.analyst_rating'))
                             ->placeholder('—')
@@ -86,7 +86,7 @@ class InstrumentInfolist
                         TextEntry::make('dividend_yield')
                             ->label(__('instruments.fields.dividend_yield'))
                             ->placeholder('—')
-                            ->formatStateUsing(fn (string $state): string => Number::percentage((float) $state * 100, NumberFormat::DECIMALS)),
+                            ->formatStateUsing(fn (string $state): string => Number::percentage((float) $state * 100, maxPrecision: NumberFormat::DECIMALS)),
                     ]),
             ]);
     }
@@ -130,7 +130,7 @@ class InstrumentInfolist
     {
         $value = self::position($record)[$key] ?? null;
 
-        return $value === null ? null : Number::format((float) $value, NumberFormat::DECIMALS);
+        return $value === null ? null : Number::format((float) $value, maxPrecision: NumberFormat::MAX_DECIMALS);
     }
 
     private static function money(Instrument $record, string $key): ?string
@@ -144,6 +144,6 @@ class InstrumentInfolist
     {
         $value = self::dividendFigures($record)[$key] ?? null;
 
-        return $value === null ? null : Number::percentage((float) $value * 100, NumberFormat::DECIMALS);
+        return $value === null ? null : Number::percentage((float) $value * 100, maxPrecision: NumberFormat::DECIMALS);
     }
 }

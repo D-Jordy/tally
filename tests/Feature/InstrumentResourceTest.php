@@ -168,7 +168,7 @@ class InstrumentResourceTest extends TestCase
         $account = Account::factory()->for($user)->create();
 
         $held = Instrument::factory()->create();
-        Transaction::factory()->for($account)->for($held)->create(['type' => 'buy', 'quantity' => 10]);
+        Transaction::factory()->for($account)->for($held)->create(['type' => 'buy', 'quantity' => 12.5]);
 
         $sold = Instrument::factory()->create();
         Transaction::factory()->for($account)->for($sold)->create(['type' => 'buy', 'quantity' => 10]);
@@ -179,7 +179,8 @@ class InstrumentResourceTest extends TestCase
         $this->actingAs($user)
             ->get(InstrumentResource::getUrl('view', ['record' => $held]))
             ->assertOk()
-            ->assertSee('10,00');
+            // Euro notation, and no trailing zeros padding it out to 12,5000.
+            ->assertSee('12,5');
 
         $this->actingAs($user)->get(InstrumentResource::getUrl('view', ['record' => $sold]))->assertOk();
         $this->actingAs($user)->get(InstrumentResource::getUrl('index'))->assertOk();

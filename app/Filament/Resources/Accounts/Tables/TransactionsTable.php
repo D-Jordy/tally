@@ -43,15 +43,15 @@ class TransactionsTable
                     ->formatStateUsing(fn (string $state): string => __("transactions.types.{$state}")),
                 TextColumn::make('quantity')
                     ->label(__('transactions.fields.quantity'))
-                    ->numeric(decimalPlaces: NumberFormat::DECIMALS)
+                    ->numeric(maxDecimalPlaces: NumberFormat::MAX_DECIMALS)
                     ->alignEnd(),
                 TextColumn::make('price')
                     ->label(__('transactions.fields.price'))
-                    ->numeric(decimalPlaces: NumberFormat::DECIMALS)
+                    ->numeric(maxDecimalPlaces: NumberFormat::MAX_DECIMALS)
                     ->alignEnd(),
                 TextColumn::make('fee')
                     ->label(__('transactions.fields.fee'))
-                    ->numeric(decimalPlaces: NumberFormat::DECIMALS)
+                    ->numeric(maxDecimalPlaces: NumberFormat::MAX_DECIMALS)
                     ->alignEnd()
                     ->toggleable(),
                 TextColumn::make('total_eur')
