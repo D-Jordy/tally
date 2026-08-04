@@ -59,8 +59,11 @@
                 <tbody>
                     @foreach ($this->positions as $position)
                         <tr style="border-top:1px solid var(--divio-row-divider,#ece9e0);">
-                            <td style="padding:10px 16px;text-align:left;font-family:'Inter',sans-serif;font-weight:600;color:var(--divio-ink,#1a1a1a);">
-                                {{ $position['name'] }}
+                            <td style="padding:10px 16px;text-align:left;font-family:'Inter',sans-serif;font-weight:600;">
+                                <a href="{{ \App\Filament\Resources\Instruments\InstrumentResource::getUrl('view', ['record' => $position['instrument_id']]) }}"
+                                   style="color:var(--divio-ink,#1a1a1a);text-decoration:none;border-bottom:1px solid var(--divio-row-divider,#ece9e0);">
+                                    {{ $position['name'] }}
+                                </a>
                             </td>
                             <td style="{{ $cell }}text-align:right;">{{ Number::format((float) $position['quantity'], maxPrecision: 4, locale: $locale) }}</td>
                             <td style="{{ $cell }}text-align:right;">

@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\Instruments\Tables;
 
+use App\Filament\Resources\Instruments\InstrumentResource;
+use App\Models\Instrument;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
@@ -15,6 +17,7 @@ class InstrumentsTable
     {
         return $table
             ->defaultSort('name')
+            ->recordUrl(fn (Instrument $record): string => InstrumentResource::getUrl('view', ['record' => $record]))
             ->columns([
                 TextColumn::make('name')
                     ->label(__('instruments.fields.name'))

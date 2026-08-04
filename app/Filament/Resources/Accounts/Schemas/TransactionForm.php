@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Filament\Resources\Transactions\Schemas;
+namespace App\Filament\Resources\Accounts\Schemas;
 
 use App\Models\Instrument;
 use Filament\Forms\Components\DateTimePicker;
@@ -18,10 +18,8 @@ class TransactionForm
                 Section::make(__('transactions.sections.trade'))
                     ->columns(3)
                     ->components([
-                        Select::make('account_id')
-                            ->label(__('transactions.fields.account'))
-                            ->relationship('account', 'name')
-                            ->required(),
+                        // No account picker: the form only ever runs inside the account
+                        // it belongs to, which fills account_id from the relationship.
                         // Instruments live in one table shared by every user, so search
                         // is narrowed to the ones you traded (through the Account global
                         // scope) rather than listing everybody's holdings by name.

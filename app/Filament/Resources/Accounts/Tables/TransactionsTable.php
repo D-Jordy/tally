@@ -1,8 +1,10 @@
 <?php
 
-namespace App\Filament\Resources\Transactions\Tables;
+namespace App\Filament\Resources\Accounts\Tables;
 
+use App\Filament\Resources\Instruments\InstrumentResource;
 use App\Models\Instrument;
+use App\Models\Transaction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ForceDeleteAction;
@@ -26,13 +28,13 @@ class TransactionsTable
                     ->label(__('transactions.fields.executed_at'))
                     ->dateTime('d-m-Y H:i')
                     ->sortable(),
-                TextColumn::make('account.name')
-                    ->label(__('transactions.fields.account'))
-                    ->toggleable(),
                 TextColumn::make('instrument.name')
                     ->label(__('transactions.fields.instrument'))
                     ->searchable()
-                    ->wrap(),
+                    ->wrap()
+                    ->url(fn (Transaction $record): string => InstrumentResource::getUrl('view', [
+                        'record' => $record->instrument_id,
+                    ])),
                 TextColumn::make('type')
                     ->label(__('transactions.fields.type'))
                     ->badge()
@@ -66,12 +68,11 @@ class TransactionsTable
                     ->formatStateUsing(fn (string $state): string => __("transactions.sources.{$state}")),
             ])
             ->filters([
-                SelectFilter::make('account')
-                    ->label(__('transactions.fields.account'))
-                    ->relationship('account', 'name'),
+                // Only the instruments traded on this account are worth offering.
                 SelectFilter::make('instrument_id')
                     ->label(__('transactions.fields.instrument'))
                     ->options(fn (): array => Instrument::query()
+                        ->whereHas('transactions.account')
                         ->orderBy('name')
                         ->pluck('name', 'id')
                         ->all())
@@ -93,7 +94,12 @@ class TransactionsTable
                         ->when($data['until'] ?? null, fn (Builder $query, string $date): Builder => $query->whereDate('executed_at', '<=', $date))),
             ])
             ->recordActions([
-                EditAction::make(),
+                // Saving the form is the deliberate correction the importer must not
+                // undo, so the row flips to 'manual'. Its dedupe_hash stays frozen
+                // (see Transaction), which keeps a re-import matching this row
+                // instead of duplicating it.
+                EditAction::make()
+                    ->mutateDataUsing(fn (array $data): array => [...$data, 'source' => 'manual']),
                 DeleteAction::make(),
                 RestoreAction::make(),
                 ForceDeleteAction::make(),
