@@ -14,6 +14,8 @@ return [
     'fields' => [
         'account' => 'Rekening',
         'instrument' => 'Instrument',
+        'instrument_name' => 'Naam',
+        'instrument_isin' => 'ISIN',
         'executed_at' => 'Uitgevoerd op',
         'type' => 'Type',
         'quantity' => 'Aantal',
@@ -43,5 +45,10 @@ return [
     'filters' => [
         'from' => 'Vanaf',
         'until' => 'Tot en met',
+    ],
+
+    'validation' => [
+        'duplicate' => 'Deze transactie staat al op deze rekening — pas de bestaande transactie aan.',
+        'duplicate_deleted' => 'Deze transactie is eerder verwijderd. Zet hem terug via het filter "verwijderd" in plaats van hem opnieuw in te voeren.',
     ],
 ];

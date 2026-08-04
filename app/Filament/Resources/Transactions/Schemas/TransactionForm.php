@@ -22,14 +22,37 @@ class TransactionForm
                             ->label(__('transactions.fields.account'))
                             ->relationship('account', 'name')
                             ->required(),
+                        // Instruments live in one table shared by every user, so search
+                        // is narrowed to the ones you traded (through the Account global
+                        // scope) rather than listing everybody's holdings by name.
+                        // getSearchResultsUsing instead of options() on purpose: options()
+                        // would also add an `in:` rule over that same narrow set, which
+                        // rejects an instrument added through createOptionForm below —
+                        // and a trade that never came from a DEGIRO export needs that way in.
                         Select::make('instrument_id')
                             ->label(__('transactions.fields.instrument'))
-                            ->options(fn (): array => Instrument::query()
+                            ->searchable()
+                            ->getSearchResultsUsing(fn (string $search): array => Instrument::query()
+                                ->whereHas('transactions.account')
+                                ->whereLike('name', "%{$search}%")
                                 ->orderBy('name')
+                                ->limit(50)
                                 ->pluck('name', 'id')
                                 ->all())
-                            ->searchable()
-                            ->required(),
+                            ->getOptionLabelUsing(fn (mixed $value): ?string => Instrument::find($value)?->name)
+                            ->required()
+                            ->createOptionForm([
+                                TextInput::make('name')
+                                    ->label(__('transactions.fields.instrument_name'))
+                                    ->required()
+                                    ->maxLength(255),
+                                TextInput::make('isin')
+                                    ->label(__('transactions.fields.instrument_isin'))
+                                    ->required()
+                                    ->maxLength(12)
+                                    ->unique('instruments', 'isin'),
+                            ])
+                            ->createOptionUsing(fn (array $data): int => Instrument::create($data)->id),
                         DateTimePicker::make('executed_at')
                             ->label(__('transactions.fields.executed_at'))
                             ->seconds(false)

@@ -5,10 +5,13 @@ namespace App\Filament\Resources\Transactions\Tables;
 use App\Models\Instrument;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
+use Filament\Actions\ForceDeleteAction;
+use Filament\Actions\RestoreAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -79,6 +82,7 @@ class TransactionsTable
                         'buy' => __('transactions.types.buy'),
                         'sell' => __('transactions.types.sell'),
                     ]),
+                TrashedFilter::make(),
                 Filter::make('executed_at')
                     ->schema([
                         DatePicker::make('from')->label(__('transactions.filters.from')),
@@ -91,6 +95,8 @@ class TransactionsTable
             ->recordActions([
                 EditAction::make(),
                 DeleteAction::make(),
+                RestoreAction::make(),
+                ForceDeleteAction::make(),
             ]);
     }
 }
