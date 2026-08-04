@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Support\NumberFormat;
 use Filament\Support\RawJs;
 use Leandrocfe\FilamentApexCharts\Widgets\ApexChartWidget;
 
@@ -58,7 +59,7 @@ abstract class AllocationDonutChart extends ApexChartWidget
 
     protected function extraJsOptions(): ?RawJs
     {
-        $jsLocale = app()->getLocale() === 'nl' ? 'nl-NL' : 'en-US';
+        $jsLocale = NumberFormat::js();
 
         // Inlined *inside* the formatter on purpose: an array sitting in the options
         // object gets deep-merged by the package and silently kills the donut render.

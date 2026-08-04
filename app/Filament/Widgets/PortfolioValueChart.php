@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Actions\ComputePortfolioHistory;
+use App\Support\NumberFormat;
 use Filament\Support\RawJs;
 use Illuminate\Support\Collection;
 use Leandrocfe\FilamentApexCharts\Widgets\ApexChartWidget;
@@ -139,7 +140,7 @@ class PortfolioValueChart extends ApexChartWidget
 
     protected function extraJsOptions(): ?RawJs
     {
-        $jsLocale = app()->getLocale() === 'nl' ? 'nl-NL' : 'en-US';
+        $jsLocale = NumberFormat::js();
         $plLabel = __('portfolio.chart.pl');
 
         // Single-series modes: built-in tooltip + matching y-axis formatter is plenty.

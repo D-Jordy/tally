@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Instruments\RelationManagers;
 
+use App\Support\NumberFormat;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -32,7 +33,7 @@ class DividendsRelationManager extends RelationManager
                     ->placeholder('—'),
                 TextColumn::make('amount_per_share')
                     ->label(__('instruments.dividends.amount_per_share'))
-                    ->numeric(decimalPlaces: 4)
+                    ->numeric(decimalPlaces: NumberFormat::DECIMALS)
                     ->alignEnd(),
                 TextColumn::make('currency')
                     ->label(__('instruments.dividends.currency')),

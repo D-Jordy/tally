@@ -1,11 +1,12 @@
 @php
     use Illuminate\Support\Number;
 
-    $locale = app()->getLocale();
-    $eur = fn ($value) => Number::currency((float) $value, 'EUR', $locale);
+    // No locale argument on the numbers: Number::useLocale() pins euro notation
+    // app-wide. Month names stay on the UI language, hence translatedFormat().
+    $eur = fn ($value) => Number::currency((float) $value, 'EUR');
     $exDate = fn ($date) => \Illuminate\Support\Carbon::parse($date)->translatedFormat('d M Y');
-    $perShare = fn ($row) => Number::format((float) $row['amount_per_share'], maxPrecision: 4, locale: $locale).' '.$row['currency'];
-    $pct = fn ($value) => $value !== null ? Number::percentage((float) $value * 100, maxPrecision: 2, locale: $locale) : '—';
+    $perShare = fn ($row) => Number::format((float) $row['amount_per_share'], maxPrecision: 4).' '.$row['currency'];
+    $pct = fn ($value) => $value !== null ? Number::percentage((float) $value * 100, maxPrecision: 2) : '—';
 
     $head = 'font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--divio-muted,#9a9488);padding:10px 16px;font-weight:500;';
 

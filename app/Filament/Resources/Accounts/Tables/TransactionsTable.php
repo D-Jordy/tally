@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Accounts\Tables;
 use App\Filament\Resources\Instruments\InstrumentResource;
 use App\Models\Instrument;
 use App\Models\Transaction;
+use App\Support\NumberFormat;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ForceDeleteAction;
@@ -42,15 +43,15 @@ class TransactionsTable
                     ->formatStateUsing(fn (string $state): string => __("transactions.types.{$state}")),
                 TextColumn::make('quantity')
                     ->label(__('transactions.fields.quantity'))
-                    ->numeric(decimalPlaces: 4)
+                    ->numeric(decimalPlaces: NumberFormat::DECIMALS)
                     ->alignEnd(),
                 TextColumn::make('price')
                     ->label(__('transactions.fields.price'))
-                    ->numeric(decimalPlaces: 4)
+                    ->numeric(decimalPlaces: NumberFormat::DECIMALS)
                     ->alignEnd(),
                 TextColumn::make('fee')
                     ->label(__('transactions.fields.fee'))
-                    ->numeric(decimalPlaces: 2)
+                    ->numeric(decimalPlaces: NumberFormat::DECIMALS)
                     ->alignEnd()
                     ->toggleable(),
                 TextColumn::make('total_eur')

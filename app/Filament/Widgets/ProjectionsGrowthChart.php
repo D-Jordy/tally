@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Support\NumberFormat;
 use Filament\Support\RawJs;
 use Leandrocfe\FilamentApexCharts\Widgets\ApexChartWidget;
 
@@ -60,7 +61,7 @@ class ProjectionsGrowthChart extends ApexChartWidget
 
     protected function extraJsOptions(): ?RawJs
     {
-        $jsLocale = app()->getLocale() === 'nl' ? 'nl-NL' : 'en-US';
+        $jsLocale = NumberFormat::js();
 
         return RawJs::make(<<<JS
         {

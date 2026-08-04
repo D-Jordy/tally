@@ -179,7 +179,7 @@ class InstrumentResourceTest extends TestCase
         $this->actingAs($user)
             ->get(InstrumentResource::getUrl('view', ['record' => $held]))
             ->assertOk()
-            ->assertSee('10.0000');
+            ->assertSee('10,00');
 
         $this->actingAs($user)->get(InstrumentResource::getUrl('view', ['record' => $sold]))->assertOk();
         $this->actingAs($user)->get(InstrumentResource::getUrl('index'))->assertOk();

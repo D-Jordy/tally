@@ -5,9 +5,11 @@ namespace App\Filament\Resources\Instruments\Schemas;
 use App\Actions\ComputeIncomingDividends;
 use App\Actions\ComputePortfolio;
 use App\Models\Instrument;
+use App\Support\NumberFormat;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Number;
 
 class InstrumentInfolist
 {
@@ -43,11 +45,11 @@ class InstrumentInfolist
                         TextEntry::make('position_quantity')
                             ->label(__('instruments.position.quantity'))
                             ->placeholder('—')
-                            ->state(fn (Instrument $record): ?string => self::number($record, 'quantity', 4)),
+                            ->state(fn (Instrument $record): ?string => self::number($record, 'quantity')),
                         TextEntry::make('position_avg_cost')
                             ->label(__('instruments.position.avg_cost'))
                             ->placeholder('—')
-                            ->state(fn (Instrument $record): ?string => self::number($record, 'avg_cost_per_share', 4)),
+                            ->state(fn (Instrument $record): ?string => self::number($record, 'avg_cost_per_share')),
                         TextEntry::make('position_value')
                             ->label(__('instruments.position.current_value'))
                             ->placeholder('—')
@@ -76,7 +78,7 @@ class InstrumentInfolist
                         TextEntry::make('analyst_target_price')
                             ->label(__('instruments.fields.analyst_target_price'))
                             ->placeholder('—')
-                            ->numeric(decimalPlaces: 2),
+                            ->numeric(decimalPlaces: NumberFormat::DECIMALS),
                         TextEntry::make('analyst_rating')
                             ->label(__('instruments.fields.analyst_rating'))
                             ->placeholder('—')
@@ -84,7 +86,7 @@ class InstrumentInfolist
                         TextEntry::make('dividend_yield')
                             ->label(__('instruments.fields.dividend_yield'))
                             ->placeholder('—')
-                            ->formatStateUsing(fn (string $state): string => number_format((float) $state * 100, 2).'%'),
+                            ->formatStateUsing(fn (string $state): string => Number::percentage((float) $state * 100, NumberFormat::DECIMALS)),
                     ]),
             ]);
     }
@@ -124,24 +126,24 @@ class InstrumentInfolist
         )->firstWhere('instrument_id', $record->id) ?? [];
     }
 
-    private static function number(Instrument $record, string $key, int $decimals): ?string
+    private static function number(Instrument $record, string $key): ?string
     {
         $value = self::position($record)[$key] ?? null;
 
-        return $value === null ? null : number_format((float) $value, $decimals);
+        return $value === null ? null : Number::format((float) $value, NumberFormat::DECIMALS);
     }
 
     private static function money(Instrument $record, string $key): ?string
     {
         $value = self::position($record)[$key] ?? null;
 
-        return $value === null ? null : '€ '.number_format((float) $value, 2);
+        return $value === null ? null : Number::currency((float) $value, 'EUR');
     }
 
     private static function percentage(Instrument $record, string $key): ?string
     {
         $value = self::dividendFigures($record)[$key] ?? null;
 
-        return $value === null ? null : number_format((float) $value * 100, 2).'%';
+        return $value === null ? null : Number::percentage((float) $value * 100, NumberFormat::DECIMALS);
     }
 }

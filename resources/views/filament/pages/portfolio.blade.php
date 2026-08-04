@@ -1,9 +1,9 @@
 @php
     use Illuminate\Support\Number;
 
-    $locale = app()->getLocale();
-    $eur = fn ($value) => Number::currency((float) $value, 'EUR', $locale);
-    $pct = fn ($value) => $value === null ? null : Number::percentage((float) $value * 100, maxPrecision: 1, locale: $locale);
+    // No locale argument anywhere: Number::useLocale() pins euro notation app-wide.
+    $eur = fn ($value) => Number::currency((float) $value, 'EUR');
+    $pct = fn ($value) => $value === null ? null : Number::percentage((float) $value * 100, maxPrecision: 1);
     $signColor = fn ($value) => (float) $value >= 0 ? 'var(--divio-positive,#2f7d52)' : 'var(--divio-negative,#c0392b)';
 
     // Ticker as the route key, id when the symbol was never resolved — see Instrument::getRouteKey().
@@ -70,12 +70,12 @@
                                     {{ $position['name'] }}
                                 </a>
                             </td>
-                            <td style="{{ $cell }}text-align:right;">{{ Number::format((float) $position['quantity'], maxPrecision: 4, locale: $locale) }}</td>
+                            <td style="{{ $cell }}text-align:right;">{{ Number::format((float) $position['quantity'], maxPrecision: \App\Support\NumberFormat::DECIMALS) }}</td>
                             <td style="{{ $cell }}text-align:right;">
-                                {{ $position['avg_cost_per_share'] !== null ? Number::format((float) $position['avg_cost_per_share'], maxPrecision: 2, locale: $locale).' '.$position['price_currency'] : '—' }}
+                                {{ $position['avg_cost_per_share'] !== null ? Number::format((float) $position['avg_cost_per_share'], maxPrecision: 2).' '.$position['price_currency'] : '—' }}
                             </td>
                             <td style="{{ $cell }}text-align:right;">
-                                {{ $position['latest_price'] !== null ? Number::format((float) $position['latest_price'], maxPrecision: 2, locale: $locale).' '.$position['latest_price_currency'] : '—' }}
+                                {{ $position['latest_price'] !== null ? Number::format((float) $position['latest_price'], maxPrecision: 2).' '.$position['latest_price_currency'] : '—' }}
                             </td>
                             <td style="{{ $cell }}text-align:right;">{{ $position['current_value_eur'] !== null ? $eur($position['current_value_eur']) : '—' }}</td>
                             <td style="{{ $cell }}text-align:right;color:{{ $position['unrealized_gain_eur'] !== null ? $signColor($position['unrealized_gain_eur']) : 'var(--divio-faint,#c4bfb3)' }};">

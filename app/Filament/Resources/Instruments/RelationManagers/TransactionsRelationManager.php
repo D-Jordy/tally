@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Instruments\RelationManagers;
 
+use App\Support\NumberFormat;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -38,11 +39,11 @@ class TransactionsRelationManager extends RelationManager
                     ->formatStateUsing(fn (string $state): string => __("transactions.types.{$state}")),
                 TextColumn::make('quantity')
                     ->label(__('transactions.fields.quantity'))
-                    ->numeric(decimalPlaces: 4)
+                    ->numeric(decimalPlaces: NumberFormat::DECIMALS)
                     ->alignEnd(),
                 TextColumn::make('price')
                     ->label(__('transactions.fields.price'))
-                    ->numeric(decimalPlaces: 4)
+                    ->numeric(decimalPlaces: NumberFormat::DECIMALS)
                     ->alignEnd(),
                 TextColumn::make('total_eur')
                     ->label(__('transactions.fields.total_eur'))

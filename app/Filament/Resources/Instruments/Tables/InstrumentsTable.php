@@ -4,12 +4,14 @@ namespace App\Filament\Resources\Instruments\Tables;
 
 use App\Filament\Resources\Instruments\InstrumentResource;
 use App\Models\Instrument;
+use App\Support\NumberFormat;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Number;
 
 class InstrumentsTable
 {
@@ -50,7 +52,7 @@ class InstrumentsTable
                     ->label(__('instruments.fields.dividend_yield'))
                     ->formatStateUsing(fn (?string $state): string => $state === null
                         ? '—'
-                        : number_format((float) $state * 100, 2).'%')
+                        : Number::percentage((float) $state * 100, NumberFormat::DECIMALS))
                     ->alignEnd()
                     ->sortable(),
             ])
