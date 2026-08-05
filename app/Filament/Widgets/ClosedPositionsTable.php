@@ -76,13 +76,13 @@ class ClosedPositionsTable extends TableWidget
             ]);
     }
 
-    /** The percentage rides along on the same line, dimmed but in the amount's colour. */
+    /** The percentage rides along on the same line, in muted grey between brackets. */
     private function percentageSuffix(?float $value): ?HtmlString
     {
         if ($value === null) {
             return null;
         }
 
-        return new HtmlString('<span style="margin-left:.5rem;opacity:.6;">'.e(Number::percentage($value * 100, maxPrecision: 1)).'</span>');
+        return new HtmlString('<span style="margin-left:.4rem;color:var(--divio-muted,#9a9488);">('.e(Number::percentage($value * 100, maxPrecision: 1)).')</span>');
     }
 }
