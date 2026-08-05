@@ -6,6 +6,7 @@ use App\Filament\Resources\Instruments\InstrumentResource;
 use App\Models\Dividend;
 use App\Support\NumberFormat;
 use Carbon\Carbon;
+use Closure;
 use Filament\Support\Enums\FontWeight;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -59,40 +60,42 @@ class DividendCalendarTable extends TableWidget
                     ->orderQueryUsing(fn (Builder $query, string $direction): Builder => $query->orderByRaw("COALESCE(pay_date, ex_date) {$direction}"))
             )
             ->columns([
+                TextColumn::make('confirmed')
+                    ->label('')
+                    ->badge()
+                    ->formatStateUsing(fn (bool $state): string => $state ? __('dividends.badge.confirmed') : __('dividends.badge.estimate'))
+                    ->color(fn (bool $state): string => $state ? 'success' : 'gray'),
                 TextColumn::make('instrument.name')
                     ->label(__('dividends.table.instrument'))
                     ->weight(FontWeight::SemiBold)
                     ->searchable()
                     ->url(fn (Dividend $record): string => InstrumentResource::getUrl('view', [
                         'record' => $record->instrument,
-                    ])),
+                    ]))
+                    ->extraAttributes($this->fadeEstimates()),
                 TextColumn::make('ex_date')
                     ->label(__('dividends.table.ex_date'))
                     ->date('d-m-Y')
-                    ->sortable(),
+                    ->sortable()
+                    ->extraAttributes($this->fadeEstimates()),
                 TextColumn::make('pay_date')
                     ->label(__('dividends.table.pay_date'))
                     ->date('d-m-Y')
                     ->placeholder('—')
-                    ->sortable(),
+                    ->sortable()
+                    ->extraAttributes($this->fadeEstimates()),
                 TextColumn::make('amount_per_share')
                     ->label(__('dividends.table.per_share'))
                     ->formatStateUsing(fn (string $state, Dividend $record): string => NumberFormat::symbol($record->currency).' '.Number::format((float) $state, maxPrecision: NumberFormat::MAX_DECIMALS))
-                    ->alignEnd(),
+                    ->alignEnd()
+                    ->extraAttributes($this->fadeEstimates()),
                 TextColumn::make('expected_eur')
-                    ->label(__('dividends.table.expected'))
+                    ->label(__('dividends.table.amount'))
                     ->state(fn (Dividend $record): ?float => $this->expectedEur[$record->id] ?? null)
                     ->money('EUR')
                     ->placeholder('—')
-                    // Estimates read softer than the confirmed rows, as they did before.
-                    ->color(fn (Dividend $record): ?string => $record->confirmed ? null : 'gray')
-                    ->alignEnd(),
-                TextColumn::make('confirmed')
-                    ->label('')
-                    ->badge()
-                    ->formatStateUsing(fn (bool $state): string => $state ? __('dividends.badge.confirmed') : __('dividends.badge.estimate'))
-                    ->color(fn (bool $state): string => $state ? 'success' : 'gray')
-                    ->alignEnd(),
+                    ->alignEnd()
+                    ->extraAttributes($this->fadeEstimates()),
             ])
             ->filters([
                 SelectFilter::make('confirmed')
@@ -104,6 +107,17 @@ class DividendCalendarTable extends TableWidget
                     ->query(fn (Builder $query, array $data): Builder => $query
                         ->when($data['value'] !== null && $data['value'] !== '', fn (Builder $query): Builder => $query->where('confirmed', (bool) $data['value']))),
             ]);
+    }
+
+    /**
+     * Estimates sit lighter in the table than the confirmed rows; the badge on the
+     * left says which is which, the fade keeps the eye on what is certain.
+     *
+     * @return Closure(Dividend): array<string, string>
+     */
+    private function fadeEstimates(): Closure
+    {
+        return fn (Dividend $record): array => $record->confirmed ? [] : ['style' => 'opacity:.5'];
     }
 
     /** The date the money lands: pay date where the provider gave one, else ex-date. */

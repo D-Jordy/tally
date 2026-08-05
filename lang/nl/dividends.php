@@ -25,7 +25,7 @@ return [
         'ex_date' => 'Ex-datum',
         'pay_date' => 'Betaaldatum',
         'per_share' => '/aandeel',
-        'expected' => 'Verwacht',
+        'amount' => 'Bedrag',
         'value' => 'Waarde',
         'yield' => 'Yield',
         'yoc' => 'YOC',

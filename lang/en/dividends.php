@@ -25,7 +25,7 @@ return [
         'ex_date' => 'Ex-date',
         'pay_date' => 'Pay date',
         'per_share' => '/share',
-        'expected' => 'Expected',
+        'amount' => 'Amount',
         'value' => 'Value',
         'yield' => 'Yield',
         'yoc' => 'YOC',
