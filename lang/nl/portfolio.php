@@ -42,6 +42,14 @@ return [
         'dividend' => 'Dividend',
     ],
 
+    'closed' => [
+        'title' => 'Gesloten posities',
+        'period' => 'Aangehouden',
+        'deployed' => 'Ingelegd',
+        'total' => 'Totaal',
+        'empty' => 'Nog niets volledig verkocht.',
+    ],
+
     'empty' => [
         'title' => 'Nog geen posities',
         'subtitle' => 'Importeer je DEGIRO-transacties om te beginnen.',

@@ -17,7 +17,7 @@ class ComputePortfolio
         $accountIds = $user->accounts()->pluck('id');
 
         if ($accountIds->isEmpty()) {
-            return ['positions' => [], 'summary' => $this->emptySummary()];
+            return ['positions' => [], 'closed_positions' => [], 'summary' => $this->emptySummary()];
         }
 
         $transactions = Transaction::whereIn('account_id', $accountIds)
@@ -26,7 +26,7 @@ class ComputePortfolio
             ->get();
 
         if ($transactions->isEmpty()) {
-            return ['positions' => [], 'summary' => $this->emptySummary()];
+            return ['positions' => [], 'closed_positions' => [], 'summary' => $this->emptySummary()];
         }
 
         $byInstrument  = $transactions->groupBy('instrument_id');
@@ -46,9 +46,10 @@ class ComputePortfolio
         // Net dividend income per instrument in EUR.
         $dividendsByInstrument = $this->dividendsEurByInstrument($dividendRows, $latestFxRates);
 
-        $today         = now()->startOfDay();
-        $allResults    = [];
-        $openPositions = [];
+        $today           = now()->startOfDay();
+        $allResults      = [];
+        $openPositions   = [];
+        $closedPositions = [];
 
         foreach ($byInstrument as $instrumentId => $txns) {
             $result = $this->buildPosition(
@@ -67,15 +68,22 @@ class ComputePortfolio
 
             if ($result['quantity'] > 0) {
                 $openPositions[] = $result;
+            } else {
+                $closedPositions[] = $result;
             }
         }
 
         usort($openPositions, fn($a, $b) => ($b['current_value_eur'] ?? 0) <=> ($a['current_value_eur'] ?? 0));
+        usort($closedPositions, fn($a, $b) => ($b['closed_at'] ?? '') <=> ($a['closed_at'] ?? ''));
 
         $deposited = $this->depositedEur($accountIds);
         $fees      = $this->feesEur($accountIds);
 
-        return ['positions' => $openPositions, 'summary' => $this->summarise($allResults, $deposited, $fees)];
+        return [
+            'positions'        => $openPositions,
+            'closed_positions' => $closedPositions,
+            'summary'          => $this->summarise($allResults, $deposited, $fees),
+        ];
     }
 
     private function buildPosition(
@@ -100,6 +108,11 @@ class ComputePortfolio
         $realizedGain     = 0.0;
         $priceCurrency    = null;
         $hasTransactions  = false;
+        // Total EUR ever put into this instrument — the denominator for a closed
+        // position's return, since a sold-out position has no current value.
+        $deployedEur      = 0.0;
+        $openedAt         = null;
+        $closedAt         = null;
 
         foreach ($txns->sortBy('executed_at') as $txn) {
             if ($txn->total_eur === null) {
@@ -107,6 +120,8 @@ class ComputePortfolio
             }
 
             $hasTransactions = true;
+            $openedAt ??= $txn->executed_at;
+            $closedAt = $txn->executed_at;
             $qty      = (float) $txn->quantity;
             $totalEur = (float) $txn->total_eur;
             $localCost = $txn->local_value !== null
@@ -128,6 +143,7 @@ class ComputePortfolio
                     $openFrac          = (float) $txn->quantity > 0.0001 ? $qty / (float) $txn->quantity : 1.0;
                     $runningLocalCost += $localCost * $openFrac;
                     $runningEurCost   += abs($totalEur) * $openFrac;
+                    $deployedEur      += abs($totalEur) * $openFrac;
                     $runningQty       += $qty;
                 }
             } else {
@@ -152,9 +168,18 @@ class ComputePortfolio
         $currentQty      = $runningQty;
         $avgCostPerShare = $currentQty > 0.0001 ? $runningLocalCost / $currentQty : null;
 
-        // Closed position — return only what the summary needs.
+        // Closed position — no current value, so the result is realised gain plus
+        // dividends measured against the capital actually deployed. cost_basis_eur
+        // stays 0 so the portfolio summary is unaffected.
         if ($currentQty < 0.0001) {
+            $totalGain = $realizedGain + $dividendEur;
+
             return [
+                'instrument_id'      => $instrument->id,
+                'name'               => $instrument->name,
+                'isin'               => $instrument->isin,
+                'symbol'             => $instrument->symbol,
+                'yahoo_symbol'       => $instrument->yahoo_symbol,
                 'quantity'           => 0,
                 'cost_basis_eur'     => 0,
                 'current_value_eur'  => null,
@@ -162,6 +187,12 @@ class ComputePortfolio
                 'unrealized_gain_pct'=> null,
                 'realized_gain_eur'  => round($realizedGain, 2),
                 'dividend_eur'       => round($dividendEur, 2),
+                'deployed_eur'       => round($deployedEur, 2),
+                'realized_gain_pct'  => $deployedEur > 0 ? round($realizedGain / $deployedEur, 4) : null,
+                'total_gain_eur'     => round($totalGain, 2),
+                'total_gain_pct'     => $deployedEur > 0 ? round($totalGain / $deployedEur, 4) : null,
+                'opened_at'          => $openedAt?->toDateString(),
+                'closed_at'          => $closedAt?->toDateString(),
             ];
         }
 

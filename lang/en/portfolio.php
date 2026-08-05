@@ -42,6 +42,14 @@ return [
         'dividend' => 'Dividend',
     ],
 
+    'closed' => [
+        'title' => 'Closed positions',
+        'period' => 'Held',
+        'deployed' => 'Invested',
+        'total' => 'Total',
+        'empty' => 'Nothing sold out yet.',
+    ],
+
     'empty' => [
         'title' => 'No positions yet',
         'subtitle' => 'Import your DEGIRO transactions to get started.',
