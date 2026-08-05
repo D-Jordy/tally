@@ -41,7 +41,6 @@ class ClosedPositionsTable extends TableWidget
                     ->url(fn (array $record): string => InstrumentResource::getUrl('view', [
                         'record' => $record['yahoo_symbol'] ?: $record['instrument_id'],
                     ]))
-                    ->searchable()
                     ->sortable(),
                 TextColumn::make('opened_at')
                     ->label(__('portfolio.closed.opened'))
@@ -60,7 +59,7 @@ class ClosedPositionsTable extends TableWidget
                     ->label(__('portfolio.kpi.realized'))
                     ->money('EUR')
                     ->suffix(fn (array $record): ?HtmlString => $this->percentageSuffix($record['realized_gain_pct']))
-                    ->color(fn (float $state): string => $state >= 0 ? 'success' : 'danger')
+                    ->color(fn (?float $state): string => (float) $state >= 0 ? 'success' : 'danger')
                     ->alignEnd()
                     ->sortable(),
                 TextColumn::make('dividend_eur')
@@ -74,7 +73,7 @@ class ClosedPositionsTable extends TableWidget
                     ->money('EUR')
                     // No bold: against the green/red it reads as a third colour.
                     ->suffix(fn (array $record): ?HtmlString => $this->percentageSuffix($record['total_gain_pct']))
-                    ->color(fn (float $state): string => $state >= 0 ? 'success' : 'danger')
+                    ->color(fn (?float $state): string => (float) $state >= 0 ? 'success' : 'danger')
                     ->alignEnd()
                     ->sortable(),
             ]);

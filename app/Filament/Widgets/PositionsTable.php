@@ -42,7 +42,6 @@ class PositionsTable extends TableWidget
                         // Ticker as the route key, id when the symbol was never resolved.
                         'record' => $record['yahoo_symbol'] ?: $record['instrument_id'],
                     ]))
-                    ->searchable()
                     ->sortable(),
                 TextColumn::make('quantity')
                     ->label(__('portfolio.table.quantity'))

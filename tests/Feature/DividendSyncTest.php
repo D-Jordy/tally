@@ -41,6 +41,28 @@ class DividendSyncTest extends TestCase
         ]);
     }
 
+    public function test_the_sync_rebuilds_the_projections_in_the_same_pass(): void
+    {
+        $instrument = Instrument::factory()->create(['yahoo_symbol' => 'AAPL']);
+
+        // Quarterly and current, so the cadence is still worth projecting forward.
+        $history = collect([9, 6, 3])->map(fn (int $monthsAgo): array => [
+            'ex_date' => now()->subMonths($monthsAgo)->toDateString(),
+            'amount' => 0.25,
+            'currency' => 'USD',
+        ])->all();
+
+        $this->mock(YahooFinanceAdapter::class, function ($mock) use ($history) {
+            $mock->shouldReceive('dividends')->andReturn($history);
+            $mock->shouldReceive('upcomingDividend')->andReturn(null);
+        });
+
+        app(DividendSyncService::class)->syncInstrument($instrument);
+
+        // New history means a new cadence: the sync owns keeping projections current.
+        $this->assertGreaterThan(0, Dividend::where('projected', true)->count());
+    }
+
     public function test_gbp_pence_amounts_are_divided_by_100(): void
     {
         $instrument = Instrument::factory()->create(['yahoo_symbol' => 'SHEL.L']);

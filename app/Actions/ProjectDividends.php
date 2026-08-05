@@ -6,6 +6,7 @@ use App\Models\Dividend;
 use App\Models\Instrument;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Materialise the cadence projection for one instrument.
@@ -26,34 +27,41 @@ class ProjectDividends
     // Cadence is read off the recent past only; older gaps say nothing about today.
     private const RECENT_PAYMENTS = 8;
 
+    // How far past its own cadence a payer may drift before we stop projecting it.
+    private const STALE_AFTER_INTERVALS = 1.5;
+
     /** Rebuild the projections for one instrument. Returns the number of rows written. */
     public function forInstrument(Instrument $instrument): int
     {
-        Dividend::where('instrument_id', $instrument->id)
-            ->where('projected', true)
-            ->delete();
+        // Wipe and rebuild as one step: a failed insert must not leave the instrument
+        // without the projections it had.
+        return DB::transaction(function () use ($instrument): int {
+            Dividend::where('instrument_id', $instrument->id)
+                ->where('projected', true)
+                ->delete();
 
-        // Only payments that have actually gone ex can describe a cadence, and only
-        // real rows: a projection must never be projected from a projection.
-        $history = Dividend::where('instrument_id', $instrument->id)
-            ->where('projected', false)
-            ->where('ex_date', '<=', now()->toDateString())
-            ->orderBy('ex_date')
-            ->get();
+            // Only payments that have actually gone ex can describe a cadence, and only
+            // real rows: a projection must never be projected from a projection.
+            $history = Dividend::where('instrument_id', $instrument->id)
+                ->where('projected', false)
+                ->where('ex_date', '<=', now()->toDateString())
+                ->orderBy('ex_date')
+                ->get();
 
-        if ($history->count() < 2) {
-            return 0;
-        }
+            if ($history->count() < 2) {
+                return 0;
+            }
 
-        $rows = $this->buildRows($instrument, $history);
+            $rows = $this->buildRows($instrument, $history);
 
-        if ($rows === []) {
-            return 0;
-        }
+            if ($rows === []) {
+                return 0;
+            }
 
-        Dividend::insert($rows);
+            Dividend::insert($rows);
 
-        return count($rows);
+            return count($rows);
+        });
     }
 
     /**
@@ -86,6 +94,14 @@ class ProjectDividends
         $latestEx = $exDates->last();
         $timesPerYear = max(1, $exDates->filter(fn (Carbon $date): bool => $date->gt($latestEx->copy()->subDays(365)))->count());
         $intervalDays = (int) round(365 / $timesPerYear);
+
+        // A payer that missed its own cadence by half an interval has stopped paying,
+        // been suspended, or we lost its history — either way the next twelve months
+        // are not ours to invent. Stale cadences used to evaporate with the request;
+        // now they would sit in the table as rows.
+        if ($latestEx->lt(now()->subDays((int) round($intervalDays * self::STALE_AFTER_INTERVALS)))) {
+            return [];
+        }
 
         // Median of recent amounts, not the latest: a one-off special dividend is an
         // outlier that would otherwise be projected forward.

@@ -30,6 +30,9 @@ class DividendCalendarTable extends TableWidget
 {
     protected int|string|array $columnSpan = 'full';
 
+    /** "When does the money arrive": pay date where the provider gave one, ex-date otherwise. */
+    private const ARRIVES_ON = 'COALESCE(pay_date, ex_date)';
+
     /** @var array<int, float|null> expected EUR per dividend row id */
     public array $expectedEur = [];
 
@@ -43,9 +46,7 @@ class DividendCalendarTable extends TableWidget
                 Dividend::query()
                     ->with('instrument')
                     ->whereIn('id', array_keys($this->expectedEur))
-                    // "When does the money arrive": pay date where the provider gave us
-                    // one, ex-date for everything else.
-                    ->orderByRaw('COALESCE(pay_date, ex_date)')
+                    ->orderByRaw(self::ARRIVES_ON)
             )
             ->heading(__('dividends.sections.calendar'))
             ->emptyStateHeading(__('dividends.empty.calendar'))
@@ -57,10 +58,10 @@ class DividendCalendarTable extends TableWidget
                     ->titlePrefixedWithLabel(false)
                     ->getKeyFromRecordUsing(fn (Dividend $record): string => $this->arrivesOn($record)->format('Y-m'))
                     ->getTitleFromRecordUsing(fn (Dividend $record): string => $this->arrivesOn($record)->translatedFormat('F Y'))
-                    ->orderQueryUsing(fn (Builder $query, string $direction): Builder => $query->orderByRaw("COALESCE(pay_date, ex_date) {$direction}"))
+                    ->orderQueryUsing(fn (Builder $query, string $direction): Builder => $query->orderByRaw(self::ARRIVES_ON.' '.$direction))
                     // 'month' is not a column, so the summary per group has to say in
                     // SQL what it means — Postgres, like the rest of the app.
-                    ->scopeQueryByKeyUsing(fn (Builder $query, string $key): Builder => $query->whereRaw("to_char(COALESCE(pay_date, ex_date), 'YYYY-MM') = ?", [$key]))
+                    ->scopeQueryByKeyUsing(fn (Builder $query, string $key): Builder => $query->whereRaw('to_char('.self::ARRIVES_ON.", 'YYYY-MM') = ?", [$key]))
             )
             ->columns([
                 TextColumn::make('confirmed')

@@ -120,6 +120,25 @@ class ProjectDividendsTest extends TestCase
         $this->assertSame(0, Dividend::where('projected', true)->count());
     }
 
+    public function test_a_payer_that_missed_its_cadence_is_not_projected_forward(): void
+    {
+        $instrument = Instrument::factory()->create();
+
+        // Quarterly, but the last payment was well over a year ago: stopped, suspended
+        // or history we no longer trust — not ours to invent twelve months for.
+        foreach ([24, 21, 18, 15] as $monthsAgo) {
+            Dividend::factory()->create([
+                'instrument_id' => $instrument->id,
+                'ex_date' => now()->subMonths($monthsAgo)->toDateString(),
+                'amount_per_share' => 0.50,
+                'currency' => 'EUR',
+            ]);
+        }
+
+        $this->assertSame(0, app(ProjectDividends::class)->forInstrument($instrument));
+        $this->assertSame(0, Dividend::where('projected', true)->count());
+    }
+
     public function test_a_special_dividend_does_not_inflate_the_projected_amount(): void
     {
         $instrument = Instrument::factory()->create();

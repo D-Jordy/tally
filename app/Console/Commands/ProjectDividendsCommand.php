@@ -21,7 +21,8 @@ class ProjectDividendsCommand extends Command
     {
         $total = 0;
 
-        foreach (Instrument::all() as $instrument) {
+        // Same set the sync job walks: without a symbol there is no history to read.
+        foreach (Instrument::whereNotNull('yahoo_symbol')->get() as $instrument) {
             $total += $projector->forInstrument($instrument);
         }
 
