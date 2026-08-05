@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Accounts;
 use App\Filament\Resources\Accounts\Pages\CreateAccount;
 use App\Filament\Resources\Accounts\Pages\EditAccount;
 use App\Filament\Resources\Accounts\Pages\ListAccounts;
+use App\Filament\Resources\Accounts\RelationManagers\CashMovementsRelationManager;
 use App\Filament\Resources\Accounts\RelationManagers\TransactionsRelationManager;
 use App\Filament\Resources\Accounts\Schemas\AccountForm;
 use App\Filament\Resources\Accounts\Tables\AccountsTable;
@@ -52,6 +53,7 @@ class AccountResource extends Resource
     {
         return [
             TransactionsRelationManager::class,
+            CashMovementsRelationManager::class,
         ];
     }
 

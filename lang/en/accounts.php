@@ -34,4 +34,32 @@ return [
         'done_errors' => 'Import completed with errors',
         'result_line' => ':label: :inserted added, :skipped skipped',
     ],
+
+    'cash' => [
+        'heading' => 'Cash movements',
+        'empty' => 'No cash movements on this account yet.',
+        'balance' => 'Balance',
+
+        'table' => [
+            'date' => 'Date',
+            'type' => 'Type',
+            'description' => 'Description',
+            'amount' => 'Amount',
+            'amount_eur' => 'In EUR',
+        ],
+
+        'types' => [
+            'deposit' => 'Deposit',
+            'withdrawal' => 'Withdrawal',
+            'dividend' => 'Dividend',
+            'withholding_tax' => 'Withholding tax',
+            'fee' => 'Fee',
+            'promo' => 'Rebate',
+            'interest' => 'Interest',
+            'trade' => 'Trade',
+            'fx_conversion' => 'FX conversion',
+            'internal' => 'Internal transfer',
+            'other' => 'Other',
+        ],
+    ],
 ];
