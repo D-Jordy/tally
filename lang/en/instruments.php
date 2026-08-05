@@ -51,7 +51,12 @@ return [
         'pay_date' => 'Pay date',
         'amount_per_share' => 'Per share',
         'currency' => 'Currency',
-        'confirmed' => 'Confirmed',
+        'status' => 'Status',
+        'statuses' => [
+            'paid' => 'Paid',
+            'confirmed' => 'Confirmed',
+            'projected' => 'Estimate',
+        ],
     ],
 
     'filters' => [

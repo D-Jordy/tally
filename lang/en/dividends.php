@@ -33,6 +33,7 @@ return [
         'value' => 'Value',
         'yield' => 'Yield',
         'yoc' => 'YOC',
+        'certainty' => 'Certainty',
         'forward_12m' => 'Next 12 mo',
     ],
 

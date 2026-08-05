@@ -31,7 +31,8 @@ class DividendSyncTest extends TestCase
         $rows = app(DividendSyncService::class)->syncInstrument($instrument);
 
         $this->assertSame(3, $rows);
-        $this->assertDatabaseCount('dividends', 3);
+        // Projections share the table now, so count the real rows only.
+        $this->assertSame(3, Dividend::where('projected', false)->count());
         $this->assertDatabaseHas('dividends', [
             'instrument_id' => $instrument->id,
             'ex_date' => '2023-02-10',
@@ -242,8 +243,8 @@ class DividendSyncTest extends TestCase
 
         app(DividendSyncService::class)->syncInstrument($instrument);
 
-        // Should have 2 historical + 1 confirmed row.
-        $this->assertDatabaseCount('dividends', 3);
+        // Should have 2 historical + 1 confirmed row, projections aside.
+        $this->assertSame(3, Dividend::where('projected', false)->count());
 
         $this->assertDatabaseHas('dividends', [
             'instrument_id' => $instrument->id,

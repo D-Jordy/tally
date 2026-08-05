@@ -2,9 +2,9 @@
 
 namespace App\Filament\Resources\Instruments\RelationManagers;
 
+use App\Models\Dividend;
 use App\Support\NumberFormat;
 use Filament\Resources\RelationManagers\RelationManager;
-use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
@@ -37,9 +37,22 @@ class DividendsRelationManager extends RelationManager
                     ->alignEnd(),
                 TextColumn::make('currency')
                     ->label(__('instruments.dividends.currency')),
-                IconColumn::make('confirmed')
-                    ->label(__('instruments.dividends.confirmed'))
-                    ->boolean(),
+                // Three kinds of row live here: payments that happened, the provider's
+                // announced next one, and our own cadence projections.
+                TextColumn::make('status')
+                    ->label(__('instruments.dividends.status'))
+                    ->badge()
+                    ->state(fn (Dividend $record): string => match (true) {
+                        $record->projected => 'projected',
+                        $record->confirmed => 'confirmed',
+                        default => 'paid',
+                    })
+                    ->formatStateUsing(fn (string $state): string => __("instruments.dividends.statuses.{$state}"))
+                    ->color(fn (string $state): string => match ($state) {
+                        'projected' => 'gray',
+                        'confirmed' => 'success',
+                        default => 'info',
+                    }),
             ]);
     }
 }

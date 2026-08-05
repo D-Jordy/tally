@@ -33,6 +33,7 @@ return [
         'value' => 'Waarde',
         'yield' => 'Yield',
         'yoc' => 'YOC',
+        'certainty' => 'Zekerheid',
         'forward_12m' => 'Komende 12 mnd',
     ],
 

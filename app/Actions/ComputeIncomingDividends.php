@@ -13,9 +13,6 @@ use Illuminate\Support\Facades\DB;
 
 class ComputeIncomingDividends
 {
-    // Confirmed events suppress projections within this many days.
-    private const CONFIRMED_OVERLAP_DAYS = 20;
-
     public function __construct(private ComputePortfolio $portfolio) {}
 
     /**
@@ -49,77 +46,30 @@ class ComputeIncomingDividends
         $today = now()->startOfDay();
         $horizon = now()->addMonths(12)->endOfDay();
 
-        // Payments already gone ex — the only rows the cadence and median-amount maths may
-        // see. A confirmed future row carries an *estimated* amount and would drag both the
-        // median and the trailing-12m frequency window forward off a date that hasn't happened.
-        $allDividends = Dividend::whereIn('instrument_id', $instrumentIds)
-            ->where('ex_date', '<=', $today->toDateString())
-            ->orderBy('ex_date')
-            ->with('instrument')
-            ->get()
-            ->groupBy('instrument_id');
+        // Both lists are plain reads now: confirmed rows come from the provider,
+        // projections are materialised per instrument by ProjectDividends after every
+        // dividend sync. Nothing here infers a cadence.
+        $confirmed = $this->toEvents(
+            Dividend::whereIn('instrument_id', $instrumentIds)
+                ->where('confirmed', true)
+                ->whereBetween('ex_date', [$today->toDateString(), $horizon->toDateString()])
+                ->orderBy('ex_date')
+                ->with('instrument')
+                ->get(),
+            $qtyByInstrument,
+        );
 
-        // Confirmed upcoming rows per instrument (stored by DividendSyncService).
-        $confirmedByInstrument = Dividend::whereIn('instrument_id', $instrumentIds)
-            ->where('confirmed', true)
-            ->where('ex_date', '>=', $today->toDateString())
-            ->with('instrument')
-            ->get()
-            ->groupBy('instrument_id');
+        $events = $this->toEvents(
+            Dividend::whereIn('instrument_id', $instrumentIds)
+                ->where('projected', true)
+                ->whereBetween('ex_date', [$today->toDateString(), $horizon->toDateString()])
+                ->orderBy('ex_date')
+                ->with('instrument')
+                ->get(),
+            $qtyByInstrument,
+        );
 
-        // Build confirmed event list.
-        $confirmed = [];
-        $currencies = collect();
-
-        foreach ($confirmedByInstrument as $instrumentId => $rows) {
-            $qty = $qtyByInstrument->get($instrumentId);
-            if (! $qty) {
-                continue;
-            }
-
-            foreach ($rows as $row) {
-                $confirmed[] = [
-                    'instrument_id' => $row->instrument->id,
-                    'name' => $row->instrument->name,
-                    'yahoo_symbol' => $row->instrument->yahoo_symbol,
-                    'ex_date' => $row->ex_date->toDateString(),
-                    'pay_date' => $row->pay_date?->toDateString(),
-                    'amount_per_share' => round((float) $row->amount_per_share, 8),
-                    'currency' => $row->currency,
-                    'quantity' => round($qty, 4),
-                    'expected_eur' => null,
-                    'projected' => false,
-                    'confirmed' => true,
-                ];
-
-                $currencies->push($row->currency);
-            }
-        }
-
-        usort($confirmed, fn ($a, $b) => $a['ex_date'] <=> $b['ex_date']);
-
-        // Build projected event list (cadence-based), skipping confirmed windows.
-        $events = [];
-
-        foreach ($qtyByInstrument as $instrumentId => $qty) {
-            $history = $allDividends->get($instrumentId);
-
-            if (! $history || $history->count() < 2) {
-                continue;
-            }
-
-            $confirmedDates = collect($confirmedByInstrument->get($instrumentId) ?? [])
-                ->map(fn ($r) => $r->ex_date->toDateString());
-
-            $projected = $this->projectEvents($history, $qty, $today, $horizon, $confirmedDates);
-            $events = array_merge($events, $projected);
-
-            if (! empty($projected)) {
-                $currencies->push($projected[0]['currency']);
-            }
-        }
-
-        usort($events, fn ($a, $b) => $a['ex_date'] <=> $b['ex_date']);
+        $currencies = collect($confirmed)->pluck('currency')->merge(collect($events)->pluck('currency'));
 
         // Pre-load trailing cash movements so we can include their currencies in the FX lookup.
         $trailingRows = $this->rawTrailingRows($accountIds);
@@ -199,6 +149,38 @@ class ComputeIncomingDividends
     // -------------------------------------------------------------------------
 
     /**
+     * Turn dividend rows into events for the positions actually held, carrying the
+     * quantity that decides what the payment is worth to this user.
+     *
+     * @param  Collection<int, Dividend>  $rows
+     * @param  Collection<int, float>  $qtyByInstrument
+     * @return array<int, array<string, mixed>>
+     */
+    private function toEvents(Collection $rows, Collection $qtyByInstrument): array
+    {
+        return $rows
+            ->filter(fn (Dividend $row): bool => (bool) $qtyByInstrument->get($row->instrument_id))
+            ->map(fn (Dividend $row): array => [
+                // The row id lets the calendar table pair its Eloquent records back up
+                // with the per-user EUR amount computed here.
+                'id' => $row->id,
+                'instrument_id' => $row->instrument->id,
+                'name' => $row->instrument->name,
+                'yahoo_symbol' => $row->instrument->yahoo_symbol,
+                'ex_date' => $row->ex_date->toDateString(),
+                'pay_date' => $row->pay_date?->toDateString(),
+                'amount_per_share' => round((float) $row->amount_per_share, 8),
+                'currency' => $row->currency,
+                'quantity' => round((float) $qtyByInstrument->get($row->instrument_id), 4),
+                'expected_eur' => null,
+                'projected' => $row->projected,
+                'confirmed' => $row->confirmed,
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
      * Roll the forward 12-month events up per instrument, with both yields:
      * current yield on market value, and yield on cost (YOC) on the cost basis.
      *
@@ -247,111 +229,6 @@ class ComputeIncomingDividends
             ->sortByDesc('forward_12m_eur')
             ->values()
             ->all();
-    }
-
-    /**
-     * Project forward dividend events for one instrument over the given horizon.
-     * Requires at least 2 historical ex-dates to infer cadence.
-     * Skips any date that falls within CONFIRMED_OVERLAP_DAYS of a confirmed event.
-     */
-    private function projectEvents(
-        Collection $history,
-        float $qty,
-        Carbon $today,
-        Carbon $horizon,
-        Collection $confirmedDates,
-    ): array {
-        $exDates = $history->pluck('ex_date')->map(fn ($d) => Carbon::parse($d))->sortBy(fn ($d) => $d->timestamp)->values();
-
-        if ($exDates->count() < 2) {
-            return [];
-        }
-
-        $recent = $exDates->slice(-8)->values();
-        $gaps = [];
-
-        for ($i = 1; $i < $recent->count(); $i++) {
-            $gaps[] = $recent[$i - 1]->diffInDays($recent[$i]);
-        }
-
-        sort($gaps);
-        $medianGap = $this->median($gaps);
-
-        if ($medianGap < 7) {
-            return [];
-        }
-
-        // Frequency = payments actually made in the trailing 12 months, not the median gap.
-        // Semi-annual EU payers (NN, Shell, …) space their two payments unevenly (~90d then
-        // ~275d), so the median gap lands in the annual bucket and half the income vanishes.
-        // ponytail: a special dividend in the window inflates the count by one; the median
-        // amount below already damps its value. Dedup near ex-dates if that ever bites.
-        $latestEx = $exDates->last();
-        $timesPerYear = max(1, $exDates->filter(fn (Carbon $date): bool => $date->gt($latestEx->copy()->subDays(365)))->count());
-        $intervalDays = (int) round(365 / $timesPerYear);
-
-        $latest = $history->sortBy('ex_date')->last();
-        // Use the median of recent amounts, not the latest: a one-off special
-        // dividend is an outlier that would otherwise be projected forward.
-        $amount = (float) $history->sortBy('ex_date')->slice(-8)
-            ->pluck('amount_per_share')
-            ->map(fn ($value) => (float) $value)
-            ->median();
-        $currency = $latest->currency;
-        $instrument = $latest->instrument;
-
-        $cursor = Carbon::parse($latest->ex_date);
-        $events = [];
-
-        while (true) {
-            $cursor->addDays($intervalDays);
-
-            if ($cursor->gt($horizon)) {
-                break;
-            }
-
-            if ($cursor->gte($today)) {
-                // Skip if within ±CONFIRMED_OVERLAP_DAYS of any confirmed event.
-                $overlaps = $confirmedDates->contains(function ($confirmedDate) use ($cursor) {
-                    return abs($cursor->diffInDays(Carbon::parse($confirmedDate))) <= self::CONFIRMED_OVERLAP_DAYS;
-                });
-
-                if ($overlaps) {
-                    continue;
-                }
-
-                $events[] = [
-                    'instrument_id' => $instrument->id,
-                    'name' => $instrument->name,
-                    'yahoo_symbol' => $instrument->yahoo_symbol,
-                    'ex_date' => $cursor->toDateString(),
-                    'pay_date' => null,
-                    'amount_per_share' => round($amount, 8),
-                    'currency' => $currency,
-                    'quantity' => round($qty, 4),
-                    'expected_eur' => null,
-                    'projected' => true,
-                    'confirmed' => false,
-                ];
-            }
-        }
-
-        return $events;
-    }
-
-    private function median(array $sorted): float
-    {
-        $count = count($sorted);
-
-        if ($count === 0) {
-            return 0.0;
-        }
-
-        $mid = (int) ($count / 2);
-
-        return $count % 2 === 1
-            ? (float) $sorted[$mid]
-            : ($sorted[$mid - 1] + $sorted[$mid]) / 2.0;
     }
 
     private function toEur(float $amount, string $currency, Collection $fxRates): ?float
