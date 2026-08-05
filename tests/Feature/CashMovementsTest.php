@@ -4,19 +4,19 @@ namespace Tests\Feature;
 
 use App\Actions\ComputeCashLedger;
 use App\Actions\ComputePortfolio;
-use App\Filament\Resources\Accounts\Pages\ListAccounts;
+use App\Filament\Resources\Accounts\Pages\EditAccount;
+use App\Filament\Resources\Accounts\RelationManagers\CashMovementsRelationManager;
 use App\Models\Account;
 use App\Models\CashMovement;
 use App\Models\FxRate;
 use App\Models\Instrument;
 use App\Models\Transaction;
 use App\Models\User;
-use Filament\Actions\Testing\TestAction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;
 
-class CashMovementsModalTest extends TestCase
+class CashMovementsTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -114,35 +114,44 @@ class CashMovementsModalTest extends TestCase
         $this->assertSame(0.0, $ledger['total_eur']);
     }
 
-    public function test_the_modal_opens_from_the_accounts_table(): void
+    public function test_the_relation_manager_lists_the_movements_with_their_eur_totals(): void
     {
         $user = User::factory()->create();
         $account = Account::factory()->for($user)->create(['name' => 'DEGIRO']);
         $this->movement($account, 'deposit', 1000);
+        $this->movement($account, 'dividend', 100, 'USD', date: '2024-04-01');
+        FxRate::create(['date' => '2024-04-01', 'currency' => 'USD', 'rate_to_eur' => 0.90]);
 
         Livewire::actingAs($user)
-            ->test(ListAccounts::class)
-            ->mountAction(TestAction::make('cashMovements')->table($account))
+            ->test(CashMovementsRelationManager::class, [
+                'ownerRecord' => $account,
+                'pageClass' => EditAccount::class,
+            ])
             ->assertSuccessful()
-            ->assertActionMounted(TestAction::make('cashMovements')->table($account));
+            ->assertCanSeeTableRecords($account->cashMovements)
+            // Header totals: the deposit bucket and the converted dividend.
+            ->assertSee('1.000,00')
+            ->assertSee('90,00')
+            ->assertDontSee(__('accounts.cash.empty'));
 
-        // The modal body renders in its own pass, so assert on the view itself.
-        $html = view('filament.modals.cash-movements', [
-            'ledger' => app(ComputeCashLedger::class)->forAccount($account),
-        ])->render();
-
-        $this->assertStringContainsString(__('accounts.cash.types.deposit'), $html);
-        $this->assertStringNotContainsString(__('accounts.cash.empty'), $html);
+        // Livewire::test skips the panel's real render path — hit the page too.
+        $this->actingAs($user)
+            ->get(EditAccount::getUrl(['record' => $account]))
+            ->assertSuccessful()
+            ->assertSee(__('accounts.cash.heading'));
     }
 
-    public function test_the_modal_shows_an_empty_state_without_cash_movements(): void
+    public function test_the_relation_manager_shows_an_empty_state_without_cash_movements(): void
     {
-        $account = Account::factory()->for(User::factory())->create();
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
 
-        $html = view('filament.modals.cash-movements', [
-            'ledger' => app(ComputeCashLedger::class)->forAccount($account),
-        ])->render();
-
-        $this->assertStringContainsString(__('accounts.cash.empty'), $html);
+        Livewire::actingAs($user)
+            ->test(CashMovementsRelationManager::class, [
+                'ownerRecord' => $account,
+                'pageClass' => EditAccount::class,
+            ])
+            ->assertSuccessful()
+            ->assertSee(__('accounts.cash.empty'));
     }
 }

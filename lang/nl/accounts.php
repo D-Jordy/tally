@@ -36,9 +36,7 @@ return [
     ],
 
     'cash' => [
-        'label' => 'Cash',
         'heading' => 'Cashmutaties',
-        'close' => 'Sluiten',
         'empty' => 'Nog geen cashmutaties op deze rekening.',
         'balance' => 'Saldo',
 
@@ -48,7 +46,6 @@ return [
             'description' => 'Omschrijving',
             'amount' => 'Bedrag',
             'amount_eur' => 'In EUR',
-            'balance' => 'Saldo',
         ],
 
         'types' => [

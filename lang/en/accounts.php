@@ -36,9 +36,7 @@ return [
     ],
 
     'cash' => [
-        'label' => 'Cash',
         'heading' => 'Cash movements',
-        'close' => 'Close',
         'empty' => 'No cash movements on this account yet.',
         'balance' => 'Balance',
 
@@ -48,7 +46,6 @@ return [
             'description' => 'Description',
             'amount' => 'Amount',
             'amount_eur' => 'In EUR',
-            'balance' => 'Balance',
         ],
 
         'types' => [
