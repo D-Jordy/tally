@@ -94,7 +94,10 @@ class PositionsTable extends TableWidget
             return null;
         }
 
-        return new HtmlString('<span style="margin-left:.4rem;color:var(--divio-muted,#9a9488);">('.e(Number::percentage($value * 100, maxPrecision: 1)).')</span>');
+        // Negatives already carry their minus; the plus is on us.
+        $percentage = ($value >= 0 ? '+' : '').Number::percentage($value * 100, maxPrecision: 1);
+
+        return new HtmlString('<span style="margin-left:.4rem;color:var(--divio-muted,#9a9488);">('.e($percentage).')</span>');
     }
 
     private function signColor(?float $value): string

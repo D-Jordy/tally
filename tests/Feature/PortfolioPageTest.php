@@ -98,7 +98,7 @@ class PortfolioPageTest extends TestCase
             ]]])
             ->assertSuccessful()
             ->assertSee('$ 120,5')
-            ->assertSee('(22,6%)')
+            ->assertSee('(+22,6%)')
             ->assertDontSee('USD');
     }
 

@@ -68,7 +68,7 @@ class ClosedPositionsTable extends TableWidget
                 TextColumn::make('total_gain_eur')
                     ->label(__('portfolio.closed.total'))
                     ->money('EUR')
-                    ->weight(FontWeight::SemiBold)
+                    // No bold: against the green/red it reads as a third colour.
                     ->suffix(fn (array $record): ?HtmlString => $this->percentageSuffix($record['total_gain_pct']))
                     ->color(fn (float $state): string => $state >= 0 ? 'success' : 'danger')
                     ->alignEnd()
@@ -83,6 +83,9 @@ class ClosedPositionsTable extends TableWidget
             return null;
         }
 
-        return new HtmlString('<span style="margin-left:.4rem;color:var(--divio-muted,#9a9488);">('.e(Number::percentage($value * 100, maxPrecision: 1)).')</span>');
+        // Negatives already carry their minus; the plus is on us.
+        $percentage = ($value >= 0 ? '+' : '').Number::percentage($value * 100, maxPrecision: 1);
+
+        return new HtmlString('<span style="margin-left:.4rem;color:var(--divio-muted,#9a9488);">('.e($percentage).')</span>');
     }
 }
