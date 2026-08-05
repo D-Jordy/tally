@@ -5,12 +5,15 @@ namespace App\Filament\Widgets;
 use App\Filament\Resources\Instruments\InstrumentResource;
 use App\Models\Dividend;
 use App\Support\NumberFormat;
+use Carbon\Carbon;
 use Filament\Support\Enums\FontWeight;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Grouping\Group;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Number;
 
 /**
@@ -28,6 +31,9 @@ class DividendCalendarTable extends TableWidget
     /** @var array<int, float|null> expected EUR per dividend row id */
     public array $expectedEur = [];
 
+    /** @var array<string, float>|null memo for one render */
+    private ?array $monthTotals = null;
+
     public function table(Table $table): Table
     {
         return $table
@@ -42,6 +48,16 @@ class DividendCalendarTable extends TableWidget
             ->heading(__('dividends.sections.calendar'))
             ->emptyStateHeading(__('dividends.empty.calendar'))
             ->paginated(false)
+            // Grouped per month with the month's income on the header — the question
+            // the page exists to answer. Possible again now the rows are a query.
+            ->defaultGroup(
+                Group::make('month')
+                    ->titlePrefixedWithLabel(false)
+                    ->getKeyFromRecordUsing(fn (Dividend $record): string => $this->arrivesOn($record)->format('Y-m'))
+                    ->getTitleFromRecordUsing(fn (Dividend $record): string => $this->arrivesOn($record)->translatedFormat('F Y'))
+                    ->getDescriptionFromRecordUsing(fn (Dividend $record): string => Number::currency($this->monthTotals()[$this->arrivesOn($record)->format('Y-m')] ?? 0, 'EUR'))
+                    ->orderQueryUsing(fn (Builder $query, string $direction): Builder => $query->orderByRaw("COALESCE(pay_date, ex_date) {$direction}"))
+            )
             ->columns([
                 TextColumn::make('instrument.name')
                     ->label(__('dividends.table.instrument'))
@@ -88,5 +104,26 @@ class DividendCalendarTable extends TableWidget
                     ->query(fn (Builder $query, array $data): Builder => $query
                         ->when($data['value'] !== null && $data['value'] !== '', fn (Builder $query): Builder => $query->where('confirmed', (bool) $data['value']))),
             ]);
+    }
+
+    /** The date the money lands: pay date where the provider gave one, else ex-date. */
+    private function arrivesOn(Dividend $record): Carbon
+    {
+        return $record->pay_date ?? $record->ex_date;
+    }
+
+    /**
+     * Expected EUR per month, summed from the per-user amounts. Filters do not touch
+     * it: a month header answers "what does this month bring in", not "what is shown".
+     *
+     * @return array<string, float>
+     */
+    private function monthTotals(): array
+    {
+        return $this->monthTotals ??= Dividend::whereIn('id', array_keys($this->expectedEur))
+            ->get(['id', 'ex_date', 'pay_date'])
+            ->groupBy(fn (Dividend $record): string => $this->arrivesOn($record)->format('Y-m'))
+            ->map(fn (Collection $rows): float => round((float) $rows->sum(fn (Dividend $record): float => (float) ($this->expectedEur[$record->id] ?? 0)), 2))
+            ->all();
     }
 }

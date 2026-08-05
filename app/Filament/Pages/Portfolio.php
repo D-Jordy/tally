@@ -126,9 +126,10 @@ class Portfolio extends Page
 
         return $schema->components([
             Section::make()->contained(false)->gridContainer()->columns(3)->schema([
-                $this->stat(__('portfolio.kpi.realized'), $this->eur($summary['total_realized_gain_eur']), color: $this->signColor($summary['total_realized_gain_eur'])),
-                $this->stat(__('portfolio.kpi.dividends'), $this->eur($summary['total_dividend_eur']), color: 'var(--divio-positive,#2f7d52)'),
-                $this->stat(__('portfolio.kpi.fees'), $this->eur($summary['total_fees_eur']), color: 'var(--divio-negative,#c0392b)'),
+                // Same top rules as the row above: performance green, context muted.
+                $this->stat(__('portfolio.kpi.realized'), $this->eur($summary['total_realized_gain_eur']), rule: 'positive', color: $this->signColor($summary['total_realized_gain_eur'])),
+                $this->stat(__('portfolio.kpi.dividends'), $this->eur($summary['total_dividend_eur']), rule: 'positive', color: 'var(--divio-positive,#2f7d52)'),
+                $this->stat(__('portfolio.kpi.fees'), $this->eur($summary['total_fees_eur']), rule: 'neutral', color: 'var(--divio-negative,#c0392b)'),
             ]),
         ]);
     }

@@ -11,6 +11,7 @@ use App\Models\Instrument;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Number;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -85,6 +86,35 @@ class FilamentDividendsPageTest extends TestCase
             ->assertSuccessful()
             ->assertCanSeeTableRecords($projections)
             ->assertSee(__('dividends.badge.estimate'));
+    }
+
+    public function test_the_calendar_groups_per_month_with_the_month_total(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $instrument = Instrument::factory()->create();
+        Transaction::factory()->for($account)->for($instrument)->create(['type' => 'buy', 'quantity' => 100]);
+
+        // Two payments, one per month, € 50 each.
+        foreach ([1, 2] as $monthsAhead) {
+            Dividend::factory()->for($instrument)->create([
+                'ex_date' => now()->addMonths($monthsAhead)->startOfMonth()->toDateString(),
+                'pay_date' => now()->addMonths($monthsAhead)->startOfMonth()->addWeek()->toDateString(),
+                'amount_per_share' => 0.50,
+                'currency' => 'EUR',
+                'confirmed' => true,
+            ]);
+        }
+
+        $expected = Livewire::actingAs($user)->test(Dividends::class)->get('expectedEur');
+
+        Livewire::actingAs($user)
+            ->test(DividendCalendarTable::class, ['expectedEur' => $expected])
+            ->assertSuccessful()
+            ->assertSee(now()->addMonth()->translatedFormat('F Y'))
+            ->assertSee(now()->addMonths(2)->translatedFormat('F Y'))
+            // Each month header carries that month's income, not the running total.
+            ->assertSee(Number::currency(50, 'EUR'));
     }
 
     public function test_the_calendar_orders_on_the_date_the_money_arrives(): void
