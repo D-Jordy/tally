@@ -34,4 +34,35 @@ return [
         'done_errors' => 'Import voltooid met fouten',
         'result_line' => ':label: :inserted toegevoegd, :skipped overgeslagen',
     ],
+
+    'cash' => [
+        'label' => 'Cash',
+        'heading' => 'Cashmutaties',
+        'close' => 'Sluiten',
+        'empty' => 'Nog geen cashmutaties op deze rekening.',
+        'balance' => 'Saldo',
+
+        'table' => [
+            'date' => 'Datum',
+            'type' => 'Type',
+            'description' => 'Omschrijving',
+            'amount' => 'Bedrag',
+            'amount_eur' => 'In EUR',
+            'balance' => 'Saldo',
+        ],
+
+        'types' => [
+            'deposit' => 'Storting',
+            'withdrawal' => 'Opname',
+            'dividend' => 'Dividend',
+            'withholding_tax' => 'Dividendbelasting',
+            'fee' => 'Kosten',
+            'promo' => 'Vergoeding',
+            'interest' => 'Rente',
+            'trade' => 'Transactie',
+            'fx_conversion' => 'Valutawissel',
+            'internal' => 'Interne overboeking',
+            'other' => 'Overig',
+        ],
+    ],
 ];
