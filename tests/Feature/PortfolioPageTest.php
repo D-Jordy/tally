@@ -76,6 +76,32 @@ class PortfolioPageTest extends TestCase
             ->assertSeeInOrder(['Small', 'Large']);
     }
 
+    public function test_amounts_use_currency_symbols_and_keep_the_percentage_on_one_line(): void
+    {
+        $user = User::factory()->create();
+        $instrument = Instrument::factory()->create(['name' => 'Apple', 'yahoo_symbol' => 'AAPL']);
+
+        Livewire::actingAs($user)
+            ->test(PositionsTable::class, ['rows' => [[
+                'instrument_id' => $instrument->id,
+                'yahoo_symbol' => 'AAPL',
+                'name' => 'Apple',
+                'quantity' => 10.0,
+                'avg_cost_per_share' => 120.5,
+                'price_currency' => 'USD',
+                'latest_price' => 150.25,
+                'latest_price_currency' => 'USD',
+                'current_value_eur' => 1380.0,
+                'unrealized_gain_eur' => 274.0,
+                'unrealized_gain_pct' => 0.226,
+                'dividend_eur' => 12.0,
+            ]]])
+            ->assertSuccessful()
+            ->assertSee('$ 120,5')
+            ->assertSee('22,6%')
+            ->assertDontSee('USD');
+    }
+
     public function test_renders_the_summary_kpi_stats(): void
     {
         $user = User::factory()->create();

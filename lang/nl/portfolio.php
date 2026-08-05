@@ -48,7 +48,8 @@ return [
 
     'closed' => [
         'title' => 'Gesloten posities',
-        'period' => 'Aangehouden',
+        'opened' => 'Geopend',
+        'closed' => 'Gesloten',
         'deployed' => 'Ingelegd',
         'total' => 'Totaal',
         'empty' => 'Nog niets volledig verkocht.',

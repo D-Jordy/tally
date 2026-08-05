@@ -50,7 +50,6 @@ return [
         'ex_date' => 'Ex-date',
         'pay_date' => 'Pay date',
         'amount_per_share' => 'Per share',
-        'currency' => 'Currency',
         'status' => 'Status',
         'statuses' => [
             'paid' => 'Paid',

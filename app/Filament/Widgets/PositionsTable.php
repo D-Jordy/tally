@@ -9,6 +9,7 @@ use Filament\Support\Enums\FontWeight;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget;
+use Illuminate\Support\HtmlString;
 use Illuminate\Support\Number;
 
 /**
@@ -65,7 +66,7 @@ class PositionsTable extends TableWidget
                     ->label(__('portfolio.table.unrealized'))
                     ->money('EUR')
                     ->placeholder('—')
-                    ->description(fn (array $record): ?string => $this->percentage($record['unrealized_gain_pct']))
+                    ->suffix(fn (array $record): ?HtmlString => $this->percentageSuffix($record['unrealized_gain_pct']))
                     ->color(fn (?float $state): string => $this->signColor($state))
                     ->alignEnd()
                     ->sortable(),
@@ -83,12 +84,17 @@ class PositionsTable extends TableWidget
     {
         return $value === null
             ? '—'
-            : Number::format($value, maxPrecision: NumberFormat::MAX_DECIMALS).' '.$currency;
+            : NumberFormat::symbol($currency).' '.Number::format($value, maxPrecision: NumberFormat::MAX_DECIMALS);
     }
 
-    private function percentage(?float $value): ?string
+    /** The percentage rides along on the same line, dimmed but in the amount's colour. */
+    private function percentageSuffix(?float $value): ?HtmlString
     {
-        return $value === null ? null : Number::percentage($value * 100, maxPrecision: 1);
+        if ($value === null) {
+            return null;
+        }
+
+        return new HtmlString('<span style="margin-left:.5rem;opacity:.6;">'.e(Number::percentage($value * 100, maxPrecision: 1)).'</span>');
     }
 
     private function signColor(?float $value): string

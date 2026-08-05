@@ -31,8 +31,33 @@ final class NumberFormat
     /** Ceiling for trimmed numbers: quantities, prices, per-share amounts. */
     public const MAX_DECIMALS = 4;
 
+    /**
+     * Currency symbols for amounts that are not in EUR — prices, per-share
+     * dividends. Tables show the sign, never the code. Anything exotic enough to
+     * be missing here falls back to its code, which still reads unambiguously.
+     */
+    private const SYMBOLS = [
+        'EUR' => '€',
+        'USD' => '$',
+        'GBP' => '£',
+        'CHF' => 'CHF',
+        'JPY' => '¥',
+        'SEK' => 'kr',
+        'DKK' => 'kr',
+        'NOK' => 'kr',
+        'PLN' => 'zł',
+        'CAD' => 'C$',
+        'AUD' => 'A$',
+        'HKD' => 'HK$',
+    ];
+
     public static function js(): string
     {
         return str_replace('_', '-', self::LOCALE);
+    }
+
+    public static function symbol(?string $currency): string
+    {
+        return self::SYMBOLS[strtoupper((string) $currency)] ?? (string) $currency;
     }
 }

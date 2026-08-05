@@ -8,6 +8,7 @@ use Filament\Support\Enums\FontWeight;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget;
+use Illuminate\Support\HtmlString;
 use Illuminate\Support\Number;
 
 /**
@@ -39,9 +40,12 @@ class ClosedPositionsTable extends TableWidget
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('opened_at')
-                    ->label(__('portfolio.closed.period'))
-                    ->formatStateUsing(fn (string $state, array $record): string => $state.' → '.$record['closed_at'])
-                    ->color('gray')
+                    ->label(__('portfolio.closed.opened'))
+                    ->date('d-m-Y')
+                    ->sortable(),
+                TextColumn::make('closed_at')
+                    ->label(__('portfolio.closed.closed'))
+                    ->date('d-m-Y')
                     ->sortable(),
                 TextColumn::make('deployed_eur')
                     ->label(__('portfolio.closed.deployed'))
@@ -51,7 +55,7 @@ class ClosedPositionsTable extends TableWidget
                 TextColumn::make('realized_gain_eur')
                     ->label(__('portfolio.kpi.realized'))
                     ->money('EUR')
-                    ->description(fn (array $record): ?string => $this->percentage($record['realized_gain_pct']))
+                    ->suffix(fn (array $record): ?HtmlString => $this->percentageSuffix($record['realized_gain_pct']))
                     ->color(fn (float $state): string => $state >= 0 ? 'success' : 'danger')
                     ->alignEnd()
                     ->sortable(),
@@ -65,15 +69,20 @@ class ClosedPositionsTable extends TableWidget
                     ->label(__('portfolio.closed.total'))
                     ->money('EUR')
                     ->weight(FontWeight::SemiBold)
-                    ->description(fn (array $record): ?string => $this->percentage($record['total_gain_pct']))
+                    ->suffix(fn (array $record): ?HtmlString => $this->percentageSuffix($record['total_gain_pct']))
                     ->color(fn (float $state): string => $state >= 0 ? 'success' : 'danger')
                     ->alignEnd()
                     ->sortable(),
             ]);
     }
 
-    private function percentage(?float $value): ?string
+    /** The percentage rides along on the same line, dimmed but in the amount's colour. */
+    private function percentageSuffix(?float $value): ?HtmlString
     {
-        return $value === null ? null : Number::percentage($value * 100, maxPrecision: 1);
+        if ($value === null) {
+            return null;
+        }
+
+        return new HtmlString('<span style="margin-left:.5rem;opacity:.6;">'.e(Number::percentage($value * 100, maxPrecision: 1)).'</span>');
     }
 }

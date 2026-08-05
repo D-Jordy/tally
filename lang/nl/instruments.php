@@ -50,7 +50,6 @@ return [
         'ex_date' => 'Ex-datum',
         'pay_date' => 'Betaaldatum',
         'amount_per_share' => 'Per aandeel',
-        'currency' => 'Valuta',
         'status' => 'Status',
         'statuses' => [
             'paid' => 'Uitbetaald',

@@ -61,7 +61,7 @@ class DividendCalendarTable extends TableWidget
                     ->sortable(),
                 TextColumn::make('amount_per_share')
                     ->label(__('dividends.table.per_share'))
-                    ->formatStateUsing(fn (string $state, Dividend $record): string => Number::format((float) $state, maxPrecision: NumberFormat::MAX_DECIMALS).' '.$record->currency)
+                    ->formatStateUsing(fn (string $state, Dividend $record): string => NumberFormat::symbol($record->currency).' '.Number::format((float) $state, maxPrecision: NumberFormat::MAX_DECIMALS))
                     ->alignEnd(),
                 TextColumn::make('expected_eur')
                     ->label(__('dividends.table.expected'))

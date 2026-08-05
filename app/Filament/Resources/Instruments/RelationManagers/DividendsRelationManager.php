@@ -8,6 +8,7 @@ use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Number;
 
 class DividendsRelationManager extends RelationManager
 {
@@ -33,10 +34,8 @@ class DividendsRelationManager extends RelationManager
                     ->placeholder('—'),
                 TextColumn::make('amount_per_share')
                     ->label(__('instruments.dividends.amount_per_share'))
-                    ->numeric(maxDecimalPlaces: NumberFormat::MAX_DECIMALS)
+                    ->formatStateUsing(fn (string $state, Dividend $record): string => NumberFormat::symbol($record->currency).' '.Number::format((float) $state, maxPrecision: NumberFormat::MAX_DECIMALS))
                     ->alignEnd(),
-                TextColumn::make('currency')
-                    ->label(__('instruments.dividends.currency')),
                 // Three kinds of row live here: payments that happened, the provider's
                 // announced next one, and our own cadence projections.
                 TextColumn::make('status')
