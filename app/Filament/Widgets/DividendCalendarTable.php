@@ -72,7 +72,6 @@ class DividendCalendarTable extends TableWidget
                 TextColumn::make('instrument.name')
                     ->label(__('dividends.table.instrument'))
                     ->weight(FontWeight::SemiBold)
-                    ->searchable()
                     ->url(fn (Dividend $record): string => InstrumentResource::getUrl('view', [
                         'record' => $record->instrument,
                     ]))
