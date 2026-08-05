@@ -13,7 +13,6 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Number;
 
 /**
  * Read-only: cash rows come from the CSV import, corrections go through the
@@ -39,6 +38,9 @@ class CashMovementsRelationManager extends RelationManager
         $eurByMovement = collect($ledger['rows'])->pluck('amount_eur', 'id');
 
         return $table
+            // Filament's own money()/numeric() read config('app.locale'), which follows
+            // Accept-Language — the one thing our numbers must not do. See NumberFormat.
+            ->defaultNumberLocale(NumberFormat::LOCALE)
             ->defaultSort('occurred_at', 'desc')
             ->header(view('filament.tables.cash-totals', ['ledger' => $ledger]))
             ->emptyStateHeading(__('accounts.cash.empty'))
@@ -58,7 +60,7 @@ class CashMovementsRelationManager extends RelationManager
                     ->searchable(),
                 TextColumn::make('amount')
                     ->label(__('accounts.cash.table.amount'))
-                    ->formatStateUsing(fn (string $state, CashMovement $record): string => Number::format((float) $state, precision: NumberFormat::DECIMALS).' '.$record->currency)
+                    ->formatStateUsing(fn (string $state, CashMovement $record): ?string => NumberFormat::money($state, $record->currency))
                     ->alignEnd()
                     ->sortable(),
                 TextColumn::make('amount_eur')

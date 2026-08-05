@@ -129,6 +129,9 @@ class CashMovementsTest extends TestCase
             ])
             ->assertSuccessful()
             ->assertCanSeeTableRecords($account->cashMovements)
+            // Own currency by symbol, euro notation whatever the UI language is.
+            ->assertSee('$ 100,00')
+            ->assertDontSee('USD')
             // Header totals: the deposit bucket and the converted dividend.
             ->assertSee('1.000,00')
             ->assertSee('90,00')
