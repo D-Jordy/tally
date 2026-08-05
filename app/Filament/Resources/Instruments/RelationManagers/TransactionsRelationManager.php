@@ -43,7 +43,7 @@ class TransactionsRelationManager extends RelationManager
                     ->alignEnd(),
                 TextColumn::make('price')
                     ->label(__('transactions.fields.price'))
-                    ->numeric(maxDecimalPlaces: NumberFormat::MAX_DECIMALS)
+                    ->numeric(decimalPlaces: NumberFormat::DECIMALS)
                     ->alignEnd(),
                 TextColumn::make('total_eur')
                     ->label(__('transactions.fields.total_eur'))

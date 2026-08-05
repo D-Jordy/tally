@@ -31,13 +31,36 @@ class DividendSyncTest extends TestCase
         $rows = app(DividendSyncService::class)->syncInstrument($instrument);
 
         $this->assertSame(3, $rows);
-        $this->assertDatabaseCount('dividends', 3);
+        // Projections share the table now, so count the real rows only.
+        $this->assertSame(3, Dividend::where('projected', false)->count());
         $this->assertDatabaseHas('dividends', [
             'instrument_id' => $instrument->id,
             'ex_date' => '2023-02-10',
             'amount_per_share' => '0.23000000',
             'currency' => 'USD',
         ]);
+    }
+
+    public function test_the_sync_rebuilds_the_projections_in_the_same_pass(): void
+    {
+        $instrument = Instrument::factory()->create(['yahoo_symbol' => 'AAPL']);
+
+        // Quarterly and current, so the cadence is still worth projecting forward.
+        $history = collect([9, 6, 3])->map(fn (int $monthsAgo): array => [
+            'ex_date' => now()->subMonths($monthsAgo)->toDateString(),
+            'amount' => 0.25,
+            'currency' => 'USD',
+        ])->all();
+
+        $this->mock(YahooFinanceAdapter::class, function ($mock) use ($history) {
+            $mock->shouldReceive('dividends')->andReturn($history);
+            $mock->shouldReceive('upcomingDividend')->andReturn(null);
+        });
+
+        app(DividendSyncService::class)->syncInstrument($instrument);
+
+        // New history means a new cadence: the sync owns keeping projections current.
+        $this->assertGreaterThan(0, Dividend::where('projected', true)->count());
     }
 
     public function test_gbp_pence_amounts_are_divided_by_100(): void
@@ -242,8 +265,8 @@ class DividendSyncTest extends TestCase
 
         app(DividendSyncService::class)->syncInstrument($instrument);
 
-        // Should have 2 historical + 1 confirmed row.
-        $this->assertDatabaseCount('dividends', 3);
+        // Should have 2 historical + 1 confirmed row, projections aside.
+        $this->assertSame(3, Dividend::where('projected', false)->count());
 
         $this->assertDatabaseHas('dividends', [
             'instrument_id' => $instrument->id,

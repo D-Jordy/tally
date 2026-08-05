@@ -50,8 +50,12 @@ return [
         'ex_date' => 'Ex-datum',
         'pay_date' => 'Betaaldatum',
         'amount_per_share' => 'Per aandeel',
-        'currency' => 'Valuta',
-        'confirmed' => 'Bevestigd',
+        'status' => 'Status',
+        'statuses' => [
+            'paid' => 'Uitbetaald',
+            'confirmed' => 'Bevestigd',
+            'projected' => 'Schatting',
+        ],
     ],
 
     'filters' => [

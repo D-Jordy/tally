@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use Illuminate\Support\Number;
+
 /**
  * Everything in Tally is reported in EUR, so numbers and money use the euro
  * notation (1.234,56) whatever language the interface is in. Only the words
@@ -31,8 +33,45 @@ final class NumberFormat
     /** Ceiling for trimmed numbers: quantities, prices, per-share amounts. */
     public const MAX_DECIMALS = 4;
 
+    /**
+     * Currency symbols for amounts that are not in EUR — prices, per-share
+     * dividends. Tables show the sign, never the code. Anything exotic enough to
+     * be missing here falls back to its code, which still reads unambiguously.
+     */
+    private const SYMBOLS = [
+        'EUR' => '€',
+        'USD' => '$',
+        'GBP' => '£',
+        'CHF' => 'CHF',
+        'JPY' => '¥',
+        'SEK' => 'kr',
+        'DKK' => 'kr',
+        'NOK' => 'kr',
+        'PLN' => 'zł',
+        'CAD' => 'C$',
+        'AUD' => 'A$',
+        'HKD' => 'HK$',
+    ];
+
     public static function js(): string
     {
         return str_replace('_', '-', self::LOCALE);
+    }
+
+    public static function symbol(?string $currency): string
+    {
+        return self::SYMBOLS[strtoupper((string) $currency)] ?? (string) $currency;
+    }
+
+    /**
+     * An amount in its own currency: symbol, then the fixed two decimals money
+     * always keeps. Prices and cost bases are money — only quantities and
+     * per-share dividends are trimmed, where a 0,0525 must survive.
+     */
+    public static function money(float|int|string|null $value, ?string $currency): ?string
+    {
+        return $value === null
+            ? null
+            : self::symbol($currency).' '.Number::format((float) $value, precision: self::DECIMALS);
     }
 }

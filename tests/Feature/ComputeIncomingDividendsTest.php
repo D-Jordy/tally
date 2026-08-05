@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Actions\ComputeIncomingDividends;
 use App\Actions\ComputePortfolio;
+use App\Actions\ProjectDividends;
 use App\Models\Account;
 use App\Models\CashMovement;
 use App\Models\Dividend;
@@ -28,6 +29,10 @@ class ComputeIncomingDividendsTest extends TestCase
      */
     private function makeAction(array $mockPositions): ComputeIncomingDividends
     {
+        // Projections are rows now, materialised by the dividend sync. Tests seed
+        // history first, so build them here — right where production would have.
+        Instrument::all()->each(fn (Instrument $instrument): int => app(ProjectDividends::class)->forInstrument($instrument));
+
         $portfolioMock = $this->mock(ComputePortfolio::class);
         $portfolioMock->shouldReceive('forUser')->andReturn([
             'positions' => $mockPositions,

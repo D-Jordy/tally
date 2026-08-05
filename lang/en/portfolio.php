@@ -32,6 +32,10 @@ return [
         'fees' => 'Fees',
     ],
 
+    'sections' => [
+        'positions' => 'Positions',
+    ],
+
     'table' => [
         'instrument' => 'Instrument',
         'quantity' => 'Quantity',
@@ -44,7 +48,8 @@ return [
 
     'closed' => [
         'title' => 'Closed positions',
-        'period' => 'Held',
+        'opened' => 'Opened',
+        'closed' => 'Closed',
         'deployed' => 'Invested',
         'total' => 'Total',
         'empty' => 'Nothing sold out yet.',

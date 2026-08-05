@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Accounts\Tables;
 
 use App\Filament\Concerns\ImportsBrokerCsv;
+use App\Support\NumberFormat;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
@@ -15,6 +16,9 @@ class AccountsTable
     public static function configure(Table $table): Table
     {
         return $table
+            // Filament's own money()/numeric() read config('app.locale'), which follows
+            // Accept-Language — the one thing our numbers must not do. See NumberFormat.
+            ->defaultNumberLocale(NumberFormat::LOCALE)
             ->columns([
                 TextColumn::make('name')
                     ->label(__('accounts.fields.name'))

@@ -28,11 +28,13 @@ class Dividends extends Page
 
     protected string $view = 'filament.pages.dividends';
 
-    /** @var array<int, array<string, mixed>> */
-    public array $confirmed = [];
-
-    /** @var array<int, array<string, mixed>> */
-    public array $projected = [];
+    /**
+     * Expected EUR per dividend row id — the only per-user figure the calendar table
+     * cannot read off its own records.
+     *
+     * @var array<int, float|null>
+     */
+    public array $expectedEur = [];
 
     /** @var array<int, array<string, mixed>> */
     public array $byInstrument = [];
@@ -49,8 +51,7 @@ class Dividends extends Page
             'summary' => $summary,
         ] = $compute->forUser(auth()->user());
 
-        $this->confirmed = $confirmed;
-        $this->projected = $events;
+        $this->expectedEur = collect([...$confirmed, ...$events])->pluck('expected_eur', 'id')->all();
         $this->byInstrument = $byInstrument;
         $this->summary = $summary;
     }

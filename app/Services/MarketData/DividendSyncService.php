@@ -2,6 +2,7 @@
 
 namespace App\Services\MarketData;
 
+use App\Actions\ProjectDividends;
 use App\Models\Dividend;
 use App\Models\Instrument;
 use App\Services\Import\CurrencyNormaliser;
@@ -13,7 +14,10 @@ class DividendSyncService
     // re-fetching keeps split-adjusted amounts and provider corrections in sync.
     private const LOOKBACK_YEARS = 5;
 
-    public function __construct(private YahooFinanceAdapter $yahoo) {}
+    public function __construct(
+        private YahooFinanceAdapter $yahoo,
+        private ProjectDividends $projector,
+    ) {}
 
     /**
      * Sync historical dividends for one instrument. Returns number of rows upserted.
@@ -57,8 +61,10 @@ class DividendSyncService
                 'pay_date' => null,
                 'amount_per_share' => $amount,
                 'currency' => $currency,
-                // A real payment overwrites the estimate that was standing in for it.
+                // A real payment overwrites the estimate that was standing in for it —
+                // whether that estimate was a confirmed row or one of our projections.
                 'confirmed' => false,
+                'projected' => false,
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
@@ -68,13 +74,17 @@ class DividendSyncService
             DB::table('dividends')->upsert(
                 $chunk,
                 ['instrument_id', 'ex_date'],
-                ['amount_per_share', 'currency', 'confirmed', 'updated_at']
+                ['amount_per_share', 'currency', 'confirmed', 'projected', 'updated_at']
             );
         }
 
         // Runs even when the history fetch came back empty, so the upcoming ex/pay
         // dates keep refreshing for instruments Yahoo has no dividend history for.
         $this->syncConfirmedUpcoming($instrument);
+
+        // New history means a new cadence, so the projections are rebuilt in the same
+        // pass. Hanging this off the service rather than the job covers the CLI too.
+        $this->projector->forInstrument($instrument);
 
         return count($records);
     }
@@ -94,8 +104,11 @@ class DividendSyncService
         // Amount = median of recent historical rows (already normalised at ingest
         // time). Median, not latest, so a one-off special dividend doesn't become
         // the projected upcoming amount.
+        // Real payments only: our own projections are future-dated and would sort to
+        // the top here, making the estimate a median of earlier estimates.
         $recent = Dividend::where('instrument_id', $instrument->id)
             ->where('confirmed', false)
+            ->where('projected', false)
             ->orderByDesc('ex_date')
             ->limit(8)
             ->get(['amount_per_share', 'currency']);
@@ -117,11 +130,12 @@ class DividendSyncService
                 'amount_per_share' => $amount,
                 'currency' => $currency,
                 'confirmed' => true,
+                'projected' => false,
                 'created_at' => $now,
                 'updated_at' => $now,
             ]],
             ['instrument_id', 'ex_date'],
-            ['pay_date', 'amount_per_share', 'currency', 'confirmed', 'updated_at']
+            ['pay_date', 'amount_per_share', 'currency', 'confirmed', 'projected', 'updated_at']
         );
     }
 }

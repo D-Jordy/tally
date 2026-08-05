@@ -11,14 +11,15 @@ class Dividend extends Model
     use HasFactory;
 
     protected $fillable = [
-        'instrument_id', 'ex_date', 'pay_date', 'amount_per_share', 'currency', 'confirmed',
+        'instrument_id', 'ex_date', 'pay_date', 'amount_per_share', 'currency', 'confirmed', 'projected',
     ];
 
     protected $casts = [
-        'ex_date'          => 'date',
-        'pay_date'         => 'date',
+        'ex_date' => 'date',
+        'pay_date' => 'date',
         'amount_per_share' => 'decimal:8',
-        'confirmed'        => 'boolean',
+        'confirmed' => 'boolean',
+        'projected' => 'boolean',
     ];
 
     public function instrument(): BelongsTo

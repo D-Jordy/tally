@@ -18,6 +18,9 @@ class InstrumentsTable
     public static function configure(Table $table): Table
     {
         return $table
+            // Filament's own money()/numeric() read config('app.locale'), which follows
+            // Accept-Language — the one thing our numbers must not do. See NumberFormat.
+            ->defaultNumberLocale(NumberFormat::LOCALE)
             ->defaultSort('name')
             ->recordUrl(fn (Instrument $record): string => InstrumentResource::getUrl('view', ['record' => $record]))
             ->columns([

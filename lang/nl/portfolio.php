@@ -32,6 +32,10 @@ return [
         'fees' => 'Kosten',
     ],
 
+    'sections' => [
+        'positions' => 'Posities',
+    ],
+
     'table' => [
         'instrument' => 'Instrument',
         'quantity' => 'Aantal',
@@ -44,7 +48,8 @@ return [
 
     'closed' => [
         'title' => 'Gesloten posities',
-        'period' => 'Aangehouden',
+        'opened' => 'Geopend',
+        'closed' => 'Gesloten',
         'deployed' => 'Ingelegd',
         'total' => 'Totaal',
         'empty' => 'Nog niets volledig verkocht.',

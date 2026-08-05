@@ -23,6 +23,9 @@ class TransactionsTable
     public static function configure(Table $table): Table
     {
         return $table
+            // Filament's own money()/numeric() read config('app.locale'), which follows
+            // Accept-Language — the one thing our numbers must not do. See NumberFormat.
+            ->defaultNumberLocale(NumberFormat::LOCALE)
             ->defaultSort('executed_at', 'desc')
             ->columns([
                 TextColumn::make('executed_at')
@@ -47,11 +50,11 @@ class TransactionsTable
                     ->alignEnd(),
                 TextColumn::make('price')
                     ->label(__('transactions.fields.price'))
-                    ->numeric(maxDecimalPlaces: NumberFormat::MAX_DECIMALS)
+                    ->numeric(decimalPlaces: NumberFormat::DECIMALS)
                     ->alignEnd(),
                 TextColumn::make('fee')
                     ->label(__('transactions.fields.fee'))
-                    ->numeric(maxDecimalPlaces: NumberFormat::MAX_DECIMALS)
+                    ->numeric(decimalPlaces: NumberFormat::DECIMALS)
                     ->alignEnd()
                     ->toggleable(),
                 TextColumn::make('total_eur')

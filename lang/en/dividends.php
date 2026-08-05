@@ -12,24 +12,24 @@ return [
     ],
 
     'sections' => [
-        'upcoming' => 'Upcoming',
-        'projected' => 'Projected',
+        'calendar' => 'Payment calendar',
         'positions' => 'Dividend-paying positions',
     ],
 
     'empty' => [
-        'confirmed' => 'No confirmed dividends.',
-        'projected' => 'No projections available.',
+        'calendar' => 'No dividends expected in the next 12 months.',
     ],
 
     'table' => [
         'instrument' => 'Instrument',
         'ex_date' => 'Ex-date',
-        'per_share' => '/share',
-        'expected' => 'Expected',
+        'pay_date' => 'Pay date',
+        'per_share' => 'Per share',
+        'amount' => 'Amount',
         'value' => 'Value',
         'yield' => 'Yield',
         'yoc' => 'YOC',
+        'certainty' => 'Certainty',
         'forward_12m' => 'Next 12 mo',
     ],
 

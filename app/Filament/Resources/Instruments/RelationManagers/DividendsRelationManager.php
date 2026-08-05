@@ -2,12 +2,13 @@
 
 namespace App\Filament\Resources\Instruments\RelationManagers;
 
+use App\Models\Dividend;
 use App\Support\NumberFormat;
 use Filament\Resources\RelationManagers\RelationManager;
-use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Number;
 
 class DividendsRelationManager extends RelationManager
 {
@@ -21,6 +22,9 @@ class DividendsRelationManager extends RelationManager
     public function table(Table $table): Table
     {
         return $table
+            // Filament's own money()/numeric() read config('app.locale'), which follows
+            // Accept-Language — the one thing our numbers must not do. See NumberFormat.
+            ->defaultNumberLocale(NumberFormat::LOCALE)
             ->defaultSort('ex_date', 'desc')
             ->columns([
                 TextColumn::make('ex_date')
@@ -33,13 +37,24 @@ class DividendsRelationManager extends RelationManager
                     ->placeholder('—'),
                 TextColumn::make('amount_per_share')
                     ->label(__('instruments.dividends.amount_per_share'))
-                    ->numeric(maxDecimalPlaces: NumberFormat::MAX_DECIMALS)
+                    ->formatStateUsing(fn (string $state, Dividend $record): string => NumberFormat::symbol($record->currency).' '.Number::format((float) $state, maxPrecision: NumberFormat::MAX_DECIMALS))
                     ->alignEnd(),
-                TextColumn::make('currency')
-                    ->label(__('instruments.dividends.currency')),
-                IconColumn::make('confirmed')
-                    ->label(__('instruments.dividends.confirmed'))
-                    ->boolean(),
+                // Three kinds of row live here: payments that happened, the provider's
+                // announced next one, and our own cadence projections.
+                TextColumn::make('status')
+                    ->label(__('instruments.dividends.status'))
+                    ->badge()
+                    ->state(fn (Dividend $record): string => match (true) {
+                        $record->projected => 'projected',
+                        $record->confirmed => 'confirmed',
+                        default => 'paid',
+                    })
+                    ->formatStateUsing(fn (string $state): string => __("instruments.dividends.statuses.{$state}"))
+                    ->color(fn (string $state): string => match ($state) {
+                        'projected' => 'gray',
+                        'confirmed' => 'success',
+                        default => 'info',
+                    }),
             ]);
     }
 }
