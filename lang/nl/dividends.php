@@ -24,7 +24,7 @@ return [
         'instrument' => 'Instrument',
         'ex_date' => 'Ex-datum',
         'pay_date' => 'Betaaldatum',
-        'per_share' => '/aandeel',
+        'per_share' => 'Per aandeel',
         'amount' => 'Bedrag',
         'value' => 'Waarde',
         'yield' => 'Yield',

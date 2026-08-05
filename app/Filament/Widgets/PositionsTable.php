@@ -79,12 +79,10 @@ class PositionsTable extends TableWidget
             ]);
     }
 
-    /** Quantities and prices keep the precision the instrument needs, in their own currency. */
+    /** A price is money: fixed two decimals, in the instrument's own currency. */
     private function price(?float $value, ?string $currency): string
     {
-        return $value === null
-            ? '—'
-            : NumberFormat::symbol($currency).' '.Number::format($value, maxPrecision: NumberFormat::MAX_DECIMALS);
+        return NumberFormat::money($value, $currency) ?? '—';
     }
 
     /** The percentage rides along on the same line, in muted grey between brackets. */

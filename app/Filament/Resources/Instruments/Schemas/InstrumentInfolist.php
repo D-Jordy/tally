@@ -49,7 +49,7 @@ class InstrumentInfolist
                         TextEntry::make('position_avg_cost')
                             ->label(__('instruments.position.avg_cost'))
                             ->placeholder('—')
-                            ->state(fn (Instrument $record): ?string => self::number($record, 'avg_cost_per_share')),
+                            ->state(fn (Instrument $record): ?string => self::price($record, 'avg_cost_per_share')),
                         TextEntry::make('position_value')
                             ->label(__('instruments.position.current_value'))
                             ->placeholder('—')
@@ -78,7 +78,7 @@ class InstrumentInfolist
                         TextEntry::make('analyst_target_price')
                             ->label(__('instruments.fields.analyst_target_price'))
                             ->placeholder('—')
-                            ->numeric(maxDecimalPlaces: NumberFormat::MAX_DECIMALS),
+                            ->numeric(decimalPlaces: NumberFormat::DECIMALS),
                         TextEntry::make('analyst_rating')
                             ->label(__('instruments.fields.analyst_rating'))
                             ->placeholder('—')
@@ -131,6 +131,14 @@ class InstrumentInfolist
         $value = self::position($record)[$key] ?? null;
 
         return $value === null ? null : Number::format((float) $value, maxPrecision: NumberFormat::MAX_DECIMALS);
+    }
+
+    /** A price keeps money's two decimals; see NumberFormat. */
+    private static function price(Instrument $record, string $key): ?string
+    {
+        $value = self::position($record)[$key] ?? null;
+
+        return $value === null ? null : Number::format((float) $value, precision: NumberFormat::DECIMALS);
     }
 
     private static function money(Instrument $record, string $key): ?string

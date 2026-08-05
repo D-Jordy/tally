@@ -47,11 +47,11 @@ class TransactionsTable
                     ->alignEnd(),
                 TextColumn::make('price')
                     ->label(__('transactions.fields.price'))
-                    ->numeric(maxDecimalPlaces: NumberFormat::MAX_DECIMALS)
+                    ->numeric(decimalPlaces: NumberFormat::DECIMALS)
                     ->alignEnd(),
                 TextColumn::make('fee')
                     ->label(__('transactions.fields.fee'))
-                    ->numeric(maxDecimalPlaces: NumberFormat::MAX_DECIMALS)
+                    ->numeric(decimalPlaces: NumberFormat::DECIMALS)
                     ->alignEnd()
                     ->toggleable(),
                 TextColumn::make('total_eur')

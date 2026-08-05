@@ -24,7 +24,7 @@ return [
         'instrument' => 'Instrument',
         'ex_date' => 'Ex-date',
         'pay_date' => 'Pay date',
-        'per_share' => '/share',
+        'per_share' => 'Per share',
         'amount' => 'Amount',
         'value' => 'Value',
         'yield' => 'Yield',

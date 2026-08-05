@@ -97,7 +97,8 @@ class PortfolioPageTest extends TestCase
                 'dividend_eur' => 12.0,
             ]]])
             ->assertSuccessful()
-            ->assertSee('$ 120,5')
+            // Prices are money: two decimals, never trimmed to "$ 120,5".
+            ->assertSee('$ 120,50')
             ->assertSee('(+22,6%)')
             ->assertDontSee('USD');
     }

@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use Illuminate\Support\Number;
+
 /**
  * Everything in Tally is reported in EUR, so numbers and money use the euro
  * notation (1.234,56) whatever language the interface is in. Only the words
@@ -59,5 +61,17 @@ final class NumberFormat
     public static function symbol(?string $currency): string
     {
         return self::SYMBOLS[strtoupper((string) $currency)] ?? (string) $currency;
+    }
+
+    /**
+     * An amount in its own currency: symbol, then the fixed two decimals money
+     * always keeps. Prices and cost bases are money — only quantities and
+     * per-share dividends are trimmed, where a 0,0525 must survive.
+     */
+    public static function money(float|int|string|null $value, ?string $currency): ?string
+    {
+        return $value === null
+            ? null
+            : self::symbol($currency).' '.Number::format((float) $value, precision: self::DECIMALS);
     }
 }
