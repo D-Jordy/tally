@@ -8,13 +8,14 @@ use App\Support\NumberFormat;
 use Carbon\Carbon;
 use Closure;
 use Filament\Support\Enums\FontWeight;
+use Filament\Tables\Columns\Summarizers\Summarizer;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Grouping\Group;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Collection;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Number;
 
 /**
@@ -31,9 +32,6 @@ class DividendCalendarTable extends TableWidget
 
     /** @var array<int, float|null> expected EUR per dividend row id */
     public array $expectedEur = [];
-
-    /** @var array<string, float>|null memo for one render */
-    private ?array $monthTotals = null;
 
     public function table(Table $table): Table
     {
@@ -59,8 +57,10 @@ class DividendCalendarTable extends TableWidget
                     ->titlePrefixedWithLabel(false)
                     ->getKeyFromRecordUsing(fn (Dividend $record): string => $this->arrivesOn($record)->format('Y-m'))
                     ->getTitleFromRecordUsing(fn (Dividend $record): string => $this->arrivesOn($record)->translatedFormat('F Y'))
-                    ->getDescriptionFromRecordUsing(fn (Dividend $record): string => Number::currency($this->monthTotals()[$this->arrivesOn($record)->format('Y-m')] ?? 0, 'EUR'))
                     ->orderQueryUsing(fn (Builder $query, string $direction): Builder => $query->orderByRaw("COALESCE(pay_date, ex_date) {$direction}"))
+                    // 'month' is not a column, so the summary per group has to say in
+                    // SQL what it means — Postgres, like the rest of the app.
+                    ->scopeQueryByKeyUsing(fn (Builder $query, string $key): Builder => $query->whereRaw("to_char(COALESCE(pay_date, ex_date), 'YYYY-MM') = ?", [$key]))
             )
             ->columns([
                 TextColumn::make('confirmed')
@@ -98,7 +98,13 @@ class DividendCalendarTable extends TableWidget
                     ->money('EUR')
                     ->placeholder('—')
                     ->alignEnd()
-                    ->extraAttributes($this->fadeEstimates()),
+                    ->extraAttributes($this->fadeEstimates())
+                    // The month's income, right under the amounts it sums.
+                    ->summarize(
+                        Summarizer::make()
+                            ->label('')
+                            ->using(fn (QueryBuilder $query): string => Number::currency($this->sumExpected($query), 'EUR'))
+                    ),
             ])
             ->filters([
                 SelectFilter::make('confirmed')
@@ -130,17 +136,12 @@ class DividendCalendarTable extends TableWidget
     }
 
     /**
-     * Expected EUR per month, summed from the per-user amounts. Filters do not touch
-     * it: a month header answers "what does this month bring in", not "what is shown".
-     *
-     * @return array<string, float>
+     * Sum the per-user amounts for the rows a summary covers — the figures are ours,
+     * not the table's, so no SQL aggregate can reach them.
      */
-    private function monthTotals(): array
+    private function sumExpected(QueryBuilder $query): float
     {
-        return $this->monthTotals ??= Dividend::whereIn('id', array_keys($this->expectedEur))
-            ->get(['id', 'ex_date', 'pay_date'])
-            ->groupBy(fn (Dividend $record): string => $this->arrivesOn($record)->format('Y-m'))
-            ->map(fn (Collection $rows): float => round((float) $rows->sum(fn (Dividend $record): float => (float) ($this->expectedEur[$record->id] ?? 0)), 2))
-            ->all();
+        return round((float) collect($query->pluck('id'))
+            ->sum(fn (int|string $id): float => (float) ($this->expectedEur[$id] ?? 0)), 2);
     }
 }
