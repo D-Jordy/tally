@@ -17,9 +17,7 @@ return [
     ],
 
     'calendar' => [
-        'note' => 'Pay date where known, otherwise ex-date',
-        'ex' => 'ex',
-        'ex_hint' => 'No pay date on file — this is the ex-date',
+        'note' => 'Grouped by pay date, ex-date where none is known',
     ],
 
     'empty' => [
@@ -28,7 +26,8 @@ return [
 
     'table' => [
         'instrument' => 'Instrument',
-        'date' => 'Date',
+        'ex_date' => 'Ex-date',
+        'pay_date' => 'Pay date',
         'per_share' => '/share',
         'expected' => 'Expected',
         'value' => 'Value',

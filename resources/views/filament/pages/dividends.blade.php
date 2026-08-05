@@ -68,7 +68,8 @@
             <table style="width:100%;border-collapse:collapse;font-family:'IBM Plex Mono',monospace;font-size:13px;">
                 <thead><tr>
                     <th style="{{ $head }}text-align:left;">{{ __('dividends.table.instrument') }}</th>
-                    <th style="{{ $head }}text-align:left;">{{ __('dividends.table.date') }}</th>
+                    <th style="{{ $head }}text-align:left;">{{ __('dividends.table.ex_date') }}</th>
+                    <th style="{{ $head }}text-align:left;">{{ __('dividends.table.pay_date') }}</th>
                     <th style="{{ $head }}text-align:right;">{{ __('dividends.table.per_share') }}</th>
                     <th style="{{ $head }}text-align:right;">{{ __('dividends.table.expected') }}</th>
                     <th style="{{ $head }}"></th>
@@ -76,7 +77,7 @@
                 <tbody>
                     @foreach ($this->timeline as $month)
                         <tr style="background:#f5f2ea;border-top:1px solid var(--divio-hairline,#e6e3da);">
-                            <td colspan="3" style="padding:8px 16px;font-family:'Inter',sans-serif;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--divio-ink,#1a1a1a);">{{ $monthName($month['month']) }}</td>
+                            <td colspan="4" style="padding:8px 16px;font-family:'Inter',sans-serif;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--divio-ink,#1a1a1a);">{{ $monthName($month['month']) }}</td>
                             <td colspan="2" style="padding:8px 16px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums;color:var(--divio-ink,#1a1a1a);">{{ $eur($month['total_eur']) }}</td>
                         </tr>
 
@@ -86,12 +87,9 @@
                                 <td style="padding:10px 16px;font-family:'Inter',sans-serif;font-weight:600;">
                                     <a href="{{ $instrumentUrl($row) }}" style="color:{{ $estimate ? 'inherit' : 'var(--divio-ink,#1a1a1a)' }};{{ $link }}">{{ $row['name'] }}</a>
                                 </td>
-                                <td style="padding:10px 16px;text-align:left;white-space:nowrap;font-variant-numeric:tabular-nums;{{ $estimate ? '' : 'color:var(--divio-body,#2a2a2a);' }}">
-                                    {{ $day($row['date']) }}
-                                    @unless ($row['is_pay_date'])
-                                        <span title="{{ __('dividends.calendar.ex_hint') }}" style="font-family:'Inter',sans-serif;font-size:9px;font-style:normal;color:var(--divio-muted,#9a9488);">{{ __('dividends.calendar.ex') }}</span>
-                                    @endunless
-                                </td>
+                                <td style="padding:10px 16px;text-align:left;white-space:nowrap;font-variant-numeric:tabular-nums;{{ $estimate ? '' : 'color:var(--divio-body,#2a2a2a);' }}">{{ $day($row['ex_date']) }}</td>
+                                {{-- No pay date on file: the row is filed under its ex-date month, and says so. --}}
+                                <td style="padding:10px 16px;text-align:left;white-space:nowrap;font-variant-numeric:tabular-nums;{{ $row['is_pay_date'] ? ($estimate ? '' : 'color:var(--divio-body,#2a2a2a);') : 'color:var(--divio-faint,#c4bfb3);' }}">{{ $row['is_pay_date'] ? $day($row['pay_date']) : '—' }}</td>
                                 <td style="padding:10px 16px;text-align:right;font-variant-numeric:tabular-nums;{{ $estimate ? '' : 'color:var(--divio-body,#2a2a2a);' }}">{{ $perShare($row) }}</td>
                                 <td style="padding:10px 16px;text-align:right;font-variant-numeric:tabular-nums;{{ $estimate ? '' : 'color:var(--divio-body,#2a2a2a);' }}">{{ $row['expected_eur'] !== null ? $eur($row['expected_eur']) : '—' }}</td>
                                 <td style="padding:10px 16px;text-align:right;"><x-divio.badge :type="$estimate ? 'estimate' : 'confirmed'" /></td>

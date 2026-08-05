@@ -71,7 +71,13 @@ class FilamentDividendsPageTest extends TestCase
             'confirmed' => true,
         ]);
 
-        $timeline = Livewire::actingAs($user)->test(Dividends::class)->get('timeline');
+        $page = Livewire::actingAs($user)
+            ->test(Dividends::class)
+            // Both dates are on the row; the month it sits under is the pay date's.
+            ->assertSee($exDate->translatedFormat('d M'))
+            ->assertSee($exDate->copy()->addMonth()->translatedFormat('d M'));
+
+        $timeline = $page->get('timeline');
 
         $this->assertSame($exDate->copy()->addMonth()->format('Y-m'), $timeline[0]['month']);
         $this->assertSame(50.0, $timeline[0]['total_eur']);

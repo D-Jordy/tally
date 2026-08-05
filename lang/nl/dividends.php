@@ -17,9 +17,7 @@ return [
     ],
 
     'calendar' => [
-        'note' => 'Betaaldatum waar bekend, anders ex-datum',
-        'ex' => 'ex',
-        'ex_hint' => 'Geen betaaldatum bekend — dit is de ex-datum',
+        'note' => 'Gegroepeerd op betaaldatum, ex-datum als die onbekend is',
     ],
 
     'empty' => [
@@ -28,7 +26,8 @@ return [
 
     'table' => [
         'instrument' => 'Instrument',
-        'date' => 'Datum',
+        'ex_date' => 'Ex-datum',
+        'pay_date' => 'Betaaldatum',
         'per_share' => '/aandeel',
         'expected' => 'Verwacht',
         'value' => 'Waarde',
