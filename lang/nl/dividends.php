@@ -12,19 +12,23 @@ return [
     ],
 
     'sections' => [
-        'upcoming' => 'Aankomend',
-        'projected' => 'Geprojecteerd',
+        'calendar' => 'Betaalkalender',
         'positions' => 'Dividend-betalende posities',
     ],
 
+    'calendar' => [
+        'note' => 'Betaaldatum waar bekend, anders ex-datum',
+        'ex' => 'ex',
+        'ex_hint' => 'Geen betaaldatum bekend — dit is de ex-datum',
+    ],
+
     'empty' => [
-        'confirmed' => 'Geen bevestigde dividenden.',
-        'projected' => 'Geen projecties beschikbaar.',
+        'calendar' => 'Geen dividend verwacht in de komende 12 maanden.',
     ],
 
     'table' => [
         'instrument' => 'Instrument',
-        'ex_date' => 'Ex-datum',
+        'date' => 'Datum',
         'per_share' => '/aandeel',
         'expected' => 'Verwacht',
         'value' => 'Waarde',

@@ -12,19 +12,23 @@ return [
     ],
 
     'sections' => [
-        'upcoming' => 'Upcoming',
-        'projected' => 'Projected',
+        'calendar' => 'Payment calendar',
         'positions' => 'Dividend-paying positions',
     ],
 
+    'calendar' => [
+        'note' => 'Pay date where known, otherwise ex-date',
+        'ex' => 'ex',
+        'ex_hint' => 'No pay date on file — this is the ex-date',
+    ],
+
     'empty' => [
-        'confirmed' => 'No confirmed dividends.',
-        'projected' => 'No projections available.',
+        'calendar' => 'No dividends expected in the next 12 months.',
     ],
 
     'table' => [
         'instrument' => 'Instrument',
-        'ex_date' => 'Ex-date',
+        'date' => 'Date',
         'per_share' => '/share',
         'expected' => 'Expected',
         'value' => 'Value',
