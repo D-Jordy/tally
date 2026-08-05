@@ -38,6 +38,9 @@ class DividendCalendarTable extends TableWidget
     public function table(Table $table): Table
     {
         return $table
+            // Filament's own money()/numeric() read config('app.locale'), which follows
+            // Accept-Language — the one thing our numbers must not do. See NumberFormat.
+            ->defaultNumberLocale(NumberFormat::LOCALE)
             ->query(
                 Dividend::query()
                     ->with('instrument')

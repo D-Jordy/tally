@@ -27,6 +27,9 @@ class DividendPositionsTable extends TableWidget
     public function table(Table $table): Table
     {
         return $table
+            // Filament's own money()/numeric() read config('app.locale'), which follows
+            // Accept-Language — the one thing our numbers must not do. See NumberFormat.
+            ->defaultNumberLocale(NumberFormat::LOCALE)
             ->records($this->arrayRecords($this->rows))
             ->heading(__('dividends.sections.positions'))
             ->paginated(false)

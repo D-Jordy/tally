@@ -10,6 +10,7 @@ use App\Models\Instrument;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Number;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -81,6 +82,10 @@ class PortfolioPageTest extends TestCase
         $user = User::factory()->create();
         $instrument = Instrument::factory()->create(['name' => 'Apple', 'yahoo_symbol' => 'AAPL']);
 
+        // Numbers are euro-notation whatever the UI language is; Filament's own
+        // money() reads config('app.locale'), so English is the case that breaks.
+        $this->app->setLocale('en');
+
         Livewire::actingAs($user)
             ->test(PositionsTable::class, ['rows' => [[
                 'instrument_id' => $instrument->id,
@@ -100,6 +105,8 @@ class PortfolioPageTest extends TestCase
             // Prices are money: two decimals, never trimmed to "$ 120,5".
             ->assertSee('$ 120,50')
             ->assertSee('(+22,6%)')
+            ->assertSee(Number::currency(1380, 'EUR'))
+            ->assertDontSee('1,380.00')
             ->assertDontSee('USD');
     }
 

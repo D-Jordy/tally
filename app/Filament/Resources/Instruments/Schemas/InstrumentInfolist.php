@@ -16,6 +16,9 @@ class InstrumentInfolist
     public static function configure(Schema $schema): Schema
     {
         return $schema
+            // Same reason as the tables: numeric()/money() otherwise follow the UI
+            // language instead of the euro notation. See NumberFormat.
+            ->defaultNumberLocale(NumberFormat::LOCALE)
             ->components([
                 Section::make(__('instruments.sections.identity'))
                     ->columns(3)

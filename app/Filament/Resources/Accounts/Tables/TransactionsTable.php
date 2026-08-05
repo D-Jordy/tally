@@ -23,6 +23,9 @@ class TransactionsTable
     public static function configure(Table $table): Table
     {
         return $table
+            // Filament's own money()/numeric() read config('app.locale'), which follows
+            // Accept-Language — the one thing our numbers must not do. See NumberFormat.
+            ->defaultNumberLocale(NumberFormat::LOCALE)
             ->defaultSort('executed_at', 'desc')
             ->columns([
                 TextColumn::make('executed_at')

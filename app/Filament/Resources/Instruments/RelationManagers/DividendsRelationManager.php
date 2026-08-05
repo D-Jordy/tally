@@ -22,6 +22,9 @@ class DividendsRelationManager extends RelationManager
     public function table(Table $table): Table
     {
         return $table
+            // Filament's own money()/numeric() read config('app.locale'), which follows
+            // Accept-Language — the one thing our numbers must not do. See NumberFormat.
+            ->defaultNumberLocale(NumberFormat::LOCALE)
             ->defaultSort('ex_date', 'desc')
             ->columns([
                 TextColumn::make('ex_date')
