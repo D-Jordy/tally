@@ -192,7 +192,55 @@ class ComputePortfolioTest extends TestCase
         $result = $this->compute($user);
 
         $this->assertSame([], $result['positions']);
+        $this->assertSame([], $result['closed_positions']);
         $this->assertSame(0, $result['summary']['total_value_eur']);
         $this->assertNull($result['summary']['net_gain_pct']);
+    }
+
+    public function test_fully_sold_instrument_becomes_a_closed_position(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $instrument = Instrument::factory()->create(['name' => 'Banco de Sabadell']);
+
+        $this->buy($account, $instrument, 465, 2.908, 'EUR', fee: 0.09, date: '2024-01-02');
+        $this->sell($account, $instrument, 465, 3.382, 'EUR', fee: 0.09, date: '2024-06-02');
+        CashMovement::create(['account_id' => $account->id, 'instrument_id' => $instrument->id, 'occurred_at' => '2024-03-01', 'type' => 'dividend', 'amount' => 296.41, 'currency' => 'EUR', 'source' => 'import']);
+        CashMovement::create(['account_id' => $account->id, 'instrument_id' => $instrument->id, 'occurred_at' => '2024-03-01', 'type' => 'withholding_tax', 'amount' => -41.50, 'currency' => 'EUR', 'source' => 'import']);
+
+        $result = $this->compute($user);
+
+        $this->assertSame([], $result['positions']);
+        $this->assertCount(1, $result['closed_positions']);
+
+        $closed = $result['closed_positions'][0];
+
+        // Bought 1352,31 all-in, sold 1572,54 net → +220,23 (16,3%); plus 254,91 net dividend.
+        $this->assertSame($instrument->id, $closed['instrument_id']);
+        $this->assertSame('Banco de Sabadell', $closed['name']);
+        $this->assertSame(1352.31, (float) $closed['deployed_eur']);
+        $this->assertSame(220.23, (float) $closed['realized_gain_eur']);
+        $this->assertEqualsWithDelta(0.163, (float) $closed['realized_gain_pct'], 0.001);
+        $this->assertSame(254.91, (float) $closed['dividend_eur']);
+        $this->assertSame(475.14, (float) $closed['total_gain_eur']);
+        $this->assertEqualsWithDelta(0.351, (float) $closed['total_gain_pct'], 0.001);
+        $this->assertSame('2024-01-02', $closed['opened_at']);
+        $this->assertSame('2024-06-02', $closed['closed_at']);
+    }
+
+    public function test_partially_sold_instrument_stays_an_open_position(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $instrument = Instrument::factory()->create(['name' => 'ASML']);
+
+        $this->buy($account, $instrument, 10, 100, 'EUR');
+        $this->sell($account, $instrument, 4, 120, 'EUR');
+        $this->price($instrument, 130, 'EUR');
+
+        $result = $this->compute($user);
+
+        $this->assertCount(1, $result['positions']);
+        $this->assertSame([], $result['closed_positions']);
     }
 }

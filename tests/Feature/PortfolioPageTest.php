@@ -67,6 +67,47 @@ class PortfolioPageTest extends TestCase
             ->assertSet('range', '6M');
     }
 
+    public function test_lists_closed_positions_below_the_open_ones(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $instrument = Instrument::factory()->create(['name' => 'Banco de Sabadell', 'yahoo_symbol' => 'SAB.MC']);
+
+        foreach (['buy', 'sell'] as $type) {
+            Transaction::factory()->for($account)->for($instrument)->create([
+                'type' => $type,
+                'quantity' => 100,
+                'price_currency' => 'EUR',
+                'trade_currency' => 'EUR',
+                'fx_rate_to_eur' => null,
+                'local_value' => 100,
+                'value_eur' => 100,
+                'total_eur' => $type === 'buy' ? 100 : 150,
+                'executed_at' => $type === 'buy' ? '2024-01-02 10:00:00' : '2024-06-02 10:00:00',
+            ]);
+        }
+
+        Livewire::actingAs($user)
+            ->test(Portfolio::class)
+            ->assertSuccessful()
+            ->assertSee(__('portfolio.closed.title'))
+            ->assertSee('Banco de Sabadell')
+            ->assertSee('/instruments/SAB.MC');
+    }
+
+    public function test_shows_an_empty_closed_section_when_nothing_was_ever_sold(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+        $instrument = Instrument::factory()->create(['name' => 'ASML Holding']);
+        Transaction::factory()->for($account)->for($instrument)->create(['type' => 'buy', 'quantity' => 10]);
+
+        Livewire::actingAs($user)
+            ->test(Portfolio::class)
+            ->assertSuccessful()
+            ->assertSee(__('portfolio.closed.empty'));
+    }
+
     public function test_does_not_leak_another_users_positions(): void
     {
         $user = User::factory()->create();

@@ -41,15 +41,23 @@ class Portfolio extends Page
     /** @var array<int, array<string, mixed>> */
     public array $positions = [];
 
+    /** @var array<int, array<string, mixed>> */
+    public array $closedPositions = [];
+
     public string $range = '1Y';
 
     public string $mode = 'value';
 
     public function mount(ComputePortfolio $compute): void
     {
-        ['positions' => $positions, 'summary' => $summary] = $compute->forUser(auth()->user());
+        [
+            'positions' => $positions,
+            'closed_positions' => $closedPositions,
+            'summary' => $summary,
+        ] = $compute->forUser(auth()->user());
 
         $this->positions = $positions;
+        $this->closedPositions = $closedPositions;
         $this->summary = $summary;
     }
 
@@ -67,6 +75,11 @@ class Portfolio extends Page
     public function hasPositions(): bool
     {
         return $this->positions !== [];
+    }
+
+    public function hasClosedPositions(): bool
+    {
+        return $this->closedPositions !== [];
     }
 
     public function summaryStats(Schema $schema): Schema

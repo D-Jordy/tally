@@ -42,14 +42,15 @@
         key('pv-'.$this->range.'-'.$this->mode)
     )
 
+    @php
+        $head = 'font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--divio-muted,#9a9488);padding:10px 16px;font-weight:500;';
+        $cell = 'padding:10px 16px;color:var(--divio-body,#2a2a2a);font-variant-numeric:tabular-nums;';
+    @endphp
+
     {{-- Positions --}}
     @if ($this->hasPositions())
         <div style="background:var(--divio-card,#fcfbf8);border:1px solid var(--divio-hairline,#e6e3da);border-radius:8px;overflow:hidden;">
             <table style="width:100%;border-collapse:collapse;font-family:'IBM Plex Mono',monospace;font-size:13px;">
-                @php
-                    $head = 'font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--divio-muted,#9a9488);padding:10px 16px;font-weight:500;';
-                    $cell = 'padding:10px 16px;color:var(--divio-body,#2a2a2a);font-variant-numeric:tabular-nums;';
-                @endphp
                 <thead>
                     <tr style="border-bottom:2px solid var(--divio-ink,#1a1a1a);">
                         <th style="{{ $head }}text-align:left;">{{ __('portfolio.table.instrument') }}</th>
@@ -104,5 +105,59 @@
                 </x-filament::button>
             </div>
         </div>
+    @endif
+
+    {{-- Closed positions — native <details>, collapsed: open positions stay the headline. --}}
+    @if ($this->hasPositions() || $this->hasClosedPositions())
+        <details style="background:var(--divio-card,#fcfbf8);border:1px solid var(--divio-hairline,#e6e3da);border-radius:8px;overflow:hidden;">
+            <summary style="cursor:pointer;padding:12px 16px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;color:var(--divio-ink,#1a1a1a);">
+                {{ __('portfolio.closed.title') }}
+                <span style="color:var(--divio-muted,#9a9488);font-weight:400;">({{ count($this->closedPositions) }})</span>
+            </summary>
+
+            @if ($this->hasClosedPositions())
+                <table style="width:100%;border-collapse:collapse;font-family:'IBM Plex Mono',monospace;font-size:13px;">
+                    <thead>
+                        <tr style="border-bottom:2px solid var(--divio-ink,#1a1a1a);">
+                            <th style="{{ $head }}text-align:left;">{{ __('portfolio.table.instrument') }}</th>
+                            <th style="{{ $head }}text-align:left;">{{ __('portfolio.closed.period') }}</th>
+                            <th style="{{ $head }}text-align:right;">{{ __('portfolio.closed.deployed') }}</th>
+                            <th style="{{ $head }}text-align:right;">{{ __('portfolio.kpi.realized') }}</th>
+                            <th style="{{ $head }}text-align:right;">{{ __('portfolio.table.dividend') }}</th>
+                            <th style="{{ $head }}text-align:right;">{{ __('portfolio.closed.total') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($this->closedPositions as $position)
+                            <tr style="border-top:1px solid var(--divio-row-divider,#ece9e0);">
+                                <td style="padding:10px 16px;text-align:left;font-family:'Inter',sans-serif;font-weight:600;">
+                                    <a href="{{ $instrumentUrl($position) }}"
+                                       style="color:var(--divio-ink,#1a1a1a);text-decoration:none;border-bottom:1px solid var(--divio-row-divider,#ece9e0);">
+                                        {{ $position['name'] }}
+                                    </a>
+                                </td>
+                                <td style="{{ $cell }}text-align:left;color:var(--divio-muted,#9a9488);">
+                                    {{ $position['opened_at'] }} → {{ $position['closed_at'] }}
+                                </td>
+                                <td style="{{ $cell }}text-align:right;">{{ $eur($position['deployed_eur']) }}</td>
+                                <td style="{{ $cell }}text-align:right;color:{{ $signColor($position['realized_gain_eur']) }};">
+                                    {{ $eur($position['realized_gain_eur']) }}@if ($position['realized_gain_pct'] !== null) <span style="color:var(--divio-muted,#9a9488);">({{ $pct($position['realized_gain_pct']) }})</span>@endif
+                                </td>
+                                <td style="{{ $cell }}text-align:right;color:{{ (float) $position['dividend_eur'] > 0 ? 'var(--divio-positive,#2f7d52)' : 'var(--divio-faint,#c4bfb3)' }};">
+                                    {{ (float) $position['dividend_eur'] > 0 ? $eur($position['dividend_eur']) : '—' }}
+                                </td>
+                                <td style="{{ $cell }}text-align:right;font-weight:600;color:{{ $signColor($position['total_gain_eur']) }};">
+                                    {{ $eur($position['total_gain_eur']) }}@if ($position['total_gain_pct'] !== null) <span style="color:var(--divio-muted,#9a9488);font-weight:400;">({{ $pct($position['total_gain_pct']) }})</span>@endif
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            @else
+                <div style="padding:0 16px 16px;font-family:'Inter',sans-serif;font-size:13px;color:var(--divio-muted-nav,#8a8474);">
+                    {{ __('portfolio.closed.empty') }}
+                </div>
+            @endif
+        </details>
     @endif
 </x-filament-panels::page>
