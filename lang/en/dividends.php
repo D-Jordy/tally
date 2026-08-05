@@ -16,10 +16,6 @@ return [
         'positions' => 'Dividend-paying positions',
     ],
 
-    'calendar' => [
-        'note' => 'Grouped by pay date, ex-date where none is known',
-    ],
-
     'empty' => [
         'calendar' => 'No dividends expected in the next 12 months.',
     ],

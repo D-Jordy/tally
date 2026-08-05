@@ -32,6 +32,10 @@ return [
         'fees' => 'Fees',
     ],
 
+    'sections' => [
+        'positions' => 'Positions',
+    ],
+
     'table' => [
         'instrument' => 'Instrument',
         'quantity' => 'Quantity',

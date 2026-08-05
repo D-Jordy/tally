@@ -40,7 +40,6 @@ class DividendCalendarTable extends TableWidget
                     ->orderByRaw('COALESCE(pay_date, ex_date)')
             )
             ->heading(__('dividends.sections.calendar'))
-            ->description(__('dividends.calendar.note'))
             ->emptyStateHeading(__('dividends.empty.calendar'))
             ->paginated(false)
             ->columns([

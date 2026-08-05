@@ -32,6 +32,10 @@ return [
         'fees' => 'Kosten',
     ],
 
+    'sections' => [
+        'positions' => 'Posities',
+    ],
+
     'table' => [
         'instrument' => 'Instrument',
         'quantity' => 'Aantal',

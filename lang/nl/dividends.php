@@ -16,10 +16,6 @@ return [
         'positions' => 'Dividend-betalende posities',
     ],
 
-    'calendar' => [
-        'note' => 'Gegroepeerd op betaaldatum, ex-datum als die onbekend is',
-    ],
-
     'empty' => [
         'calendar' => 'Geen dividend verwacht in de komende 12 maanden.',
     ],

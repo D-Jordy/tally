@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Actions\ComputePortfolio;
 use App\Filament\Pages\Portfolio;
+use App\Filament\Widgets\PositionsTable;
 use App\Models\Account;
 use App\Models\Instrument;
 use App\Models\Transaction;
@@ -41,6 +43,37 @@ class PortfolioPageTest extends TestCase
             ->assertSee('ASML Holding')
             ->assertSee('/instruments/ASML.AS')
             ->assertDontSee(__('portfolio.empty.title'));
+
+        // The chart widget only blows up on the real route, never under Livewire::test.
+        $this->actingAs($user)
+            ->get(Portfolio::getUrl())
+            ->assertSuccessful()
+            ->assertSee('ASML Holding');
+    }
+
+    public function test_the_positions_table_sorts_on_a_computed_column(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+
+        foreach (['Small' => 1, 'Large' => 100] as $name => $quantity) {
+            $instrument = Instrument::factory()->create(['name' => $name]);
+            Transaction::factory()->for($account)->for($instrument)->create([
+                'type' => 'buy',
+                'quantity' => $quantity,
+                'price' => 10,
+            ]);
+        }
+
+        $positions = app(ComputePortfolio::class)->forUser($user)['positions'];
+
+        // Sorting is ours to do — these rows never saw an ORDER BY.
+        Livewire::actingAs($user)
+            ->test(PositionsTable::class, ['rows' => $positions])
+            ->sortTable('quantity', 'desc')
+            ->assertSeeInOrder(['Large', 'Small'])
+            ->sortTable('quantity')
+            ->assertSeeInOrder(['Small', 'Large']);
     }
 
     public function test_renders_the_summary_kpi_stats(): void
