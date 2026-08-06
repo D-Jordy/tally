@@ -62,6 +62,10 @@ class PriceSyncService
             );
         }
 
+        // The listing's own currency, which only the fetch knows. Recorded so a mismatch
+        // against what the trades settled in is visible on the instruments list.
+        $instrument->update(['quote_currency' => $records[array_key_last($records)]['currency']]);
+
         return count($records);
     }
 

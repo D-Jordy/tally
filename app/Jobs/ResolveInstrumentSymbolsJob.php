@@ -23,7 +23,13 @@ class ResolveInstrumentSymbolsJob implements ShouldQueue
         foreach ($instruments as $instrument) {
             try {
                 if ($instrument->yahoo_symbol === null) {
-                    $symbol = $yahoo->searchByIsin($instrument->isin, $instrument->exchange);
+                    // The currency of the most recent fill tells the resolver which listing
+                    // you actually traded — a line quoted in another currency is the wrong one.
+                    $symbol = $yahoo->searchByIsin(
+                        $instrument->isin,
+                        $instrument->exchange,
+                        $instrument->transactions()->latest('executed_at')->value('trade_currency'),
+                    );
 
                     if ($symbol) {
                         $instrument->update(['yahoo_symbol' => $symbol]);

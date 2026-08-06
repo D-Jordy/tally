@@ -66,6 +66,16 @@ class InstrumentsTable
                 Filter::make('missing_sector')
                     ->label(__('instruments.filters.missing_sector'))
                     ->query(fn (Builder $query): Builder => $query->whereNull('sector')),
+                // Priced in a currency none of your fills settled in — usually a sibling
+                // listing of the right fund on the wrong exchange, which costs an FX leg
+                // and reports none of the dividends. Correct the symbol by hand.
+                Filter::make('currency_mismatch')
+                    ->label(__('instruments.filters.currency_mismatch'))
+                    ->query(fn (Builder $query): Builder => $query
+                        ->whereNotNull('quote_currency')
+                        ->whereHas('transactions')
+                        ->whereDoesntHave('transactions', fn (Builder $query): Builder => $query
+                            ->whereColumn('trade_currency', 'instruments.quote_currency'))),
             ])
             ->recordActions([
                 ViewAction::make(),

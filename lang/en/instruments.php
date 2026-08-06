@@ -61,6 +61,7 @@ return [
     'filters' => [
         'missing_symbol' => 'Missing symbol',
         'missing_sector' => 'Missing sector',
+        'currency_mismatch' => 'Currency mismatch',
     ],
 
     'chart' => [

@@ -61,6 +61,7 @@ return [
     'filters' => [
         'missing_symbol' => 'Symbool ontbreekt',
         'missing_sector' => 'Sector ontbreekt',
+        'currency_mismatch' => 'Valuta wijkt af',
     ],
 
     'chart' => [
