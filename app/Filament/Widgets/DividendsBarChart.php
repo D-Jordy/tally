@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Actions\ComputeIncomingDividends;
+use App\Support\ChartTheme;
 use App\Support\NumberFormat;
 use Filament\Support\RawJs;
 use Illuminate\Support\Collection;
@@ -24,31 +25,20 @@ class DividendsBarChart extends ApexChartWidget
         $months = collect(range(0, 11))->map(fn (int $offset): string => now()->addMonths($offset)->format('Y-m'));
 
         return [
-            'chart' => [
-                'type' => 'bar',
-                'height' => 300,
-                'stacked' => true,
-                'toolbar' => ['show' => false],
-                'fontFamily' => 'IBM Plex Mono, monospace',
-            ],
+            'chart' => [...ChartTheme::chart('bar'), 'stacked' => true],
             'series' => [
                 ['name' => __('dividends.chart.confirmed'), 'data' => $this->bucket($confirmed, $months)],
                 ['name' => __('dividends.chart.expected'), 'data' => $this->bucket($events, $months)],
             ],
             'xaxis' => [
+                ...ChartTheme::xaxis(),
                 'categories' => $months->map(fn (string $month): string => substr($month, 5).'/'.substr($month, 2, 2))->all(),
-                'labels' => ['style' => ['colors' => '#9a9488', 'fontFamily' => 'IBM Plex Mono, monospace']],
-                'axisBorder' => ['show' => false],
-                'axisTicks' => ['show' => false],
             ],
-            'yaxis' => [
-                'labels' => ['style' => ['colors' => '#9a9488', 'fontFamily' => 'IBM Plex Mono, monospace']],
-            ],
-            // Washed-out green, in step with --divio-positive.
-            'colors' => ['#5a8f6d', '#d8d2c4'],
+            'yaxis' => ChartTheme::yaxis(),
+            'colors' => [ChartTheme::POSITIVE, ChartTheme::SOFT],
             'plotOptions' => ['bar' => ['columnWidth' => '52%', 'borderRadius' => 2]],
-            'grid' => ['borderColor' => '#ece9e0'],
-            'legend' => ['position' => 'top', 'horizontalAlign' => 'right', 'fontFamily' => 'Inter, sans-serif'],
+            'grid' => ChartTheme::grid(),
+            'legend' => [...ChartTheme::legend(), 'position' => 'top', 'horizontalAlign' => 'right'],
             'dataLabels' => ['enabled' => false],
         ];
     }

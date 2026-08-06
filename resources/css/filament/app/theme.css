@@ -15,6 +15,11 @@
     --font-serif: 'Spectral', ui-serif, Georgia, serif;
     --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 
+    /* Filament's own components paint their surfaces with `bg-white` (table rows,
+       dropdowns, modals). Warming the token itself is what keeps them on the same
+       card colour as our sections — cheaper than chasing each `.fi-*` selector. */
+    --color-white: #fcfbf8;
+
     /* Warm paper neutral scale */
     --color-gray-50: #f7f6f2;
     --color-gray-100: #efece4;
@@ -85,10 +90,15 @@
     box-shadow: none;
 }
 
-/* Serif display for page + section titles */
+/* Serif display for every title. Filament has no "heading font" token — it styles
+   each component's heading directly — so the serif face is opt-in per selector.
+   Table widgets render their own heading, chart widgets render a section heading;
+   both belong in this list or they sit side by side in different faces. */
 .fi-header-heading,
 .fi-section-header-heading,
-.fi-modal-heading {
+.fi-modal-heading,
+.fi-ta-header-heading,
+.fi-ta-empty-state-heading {
     font-family: var(--font-serif);
     font-weight: 600;
     color: var(--divio-ink);
@@ -105,10 +115,11 @@ table tbody td {
     font-variant-numeric: tabular-nums;
 }
 
-/* Inputs: white field, tight radius */
+/* Inputs: same field colour as every other surface, tight radius. Their border is
+   what separates them from the card, not a brighter white. */
 .fi-input,
 .fi-input-wrp {
-    background-color: #ffffff;
+    background-color: var(--color-white);
     border-radius: 7px;
 }
 

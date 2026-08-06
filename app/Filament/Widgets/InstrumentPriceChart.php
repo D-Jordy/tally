@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Models\Instrument;
+use App\Support\ChartTheme;
 use Leandrocfe\FilamentApexCharts\Widgets\ApexChartWidget;
 
 class InstrumentPriceChart extends ApexChartWidget
@@ -26,12 +27,7 @@ class InstrumentPriceChart extends ApexChartWidget
             ?? collect();
 
         return [
-            'chart' => [
-                'type' => 'area',
-                'height' => 300,
-                'toolbar' => ['show' => false],
-                'fontFamily' => 'IBM Plex Mono, monospace',
-            ],
+            'chart' => ChartTheme::chart('area'),
             'series' => [
                 [
                     'name' => __('instruments.chart.close'),
@@ -39,23 +35,16 @@ class InstrumentPriceChart extends ApexChartWidget
                 ],
             ],
             'xaxis' => [
+                ...ChartTheme::xaxis(),
                 'categories' => $history->map(fn ($row): string => $row->date->toDateString())->all(),
                 'type' => 'datetime',
-                'labels' => ['style' => ['colors' => '#9a9488', 'fontFamily' => 'IBM Plex Mono, monospace']],
-                'axisBorder' => ['show' => false],
-                'axisTicks' => ['show' => false],
             ],
-            'yaxis' => [
-                'labels' => ['style' => ['colors' => '#9a9488', 'fontFamily' => 'IBM Plex Mono, monospace']],
-            ],
-            'colors' => ['#1a1a1a'],
+            'yaxis' => ChartTheme::yaxis(),
+            'colors' => [ChartTheme::INK],
             'stroke' => ['curve' => 'smooth', 'width' => 2.5],
             'legend' => ['show' => false],
-            'fill' => [
-                'type' => 'gradient',
-                'gradient' => ['shadeIntensity' => 1, 'opacityFrom' => 0.12, 'opacityTo' => 0, 'stops' => [0, 100]],
-            ],
-            'grid' => ['borderColor' => '#ece9e0', 'strokeDashArray' => 0],
+            'fill' => ChartTheme::areaFill(),
+            'grid' => ChartTheme::grid(),
             'dataLabels' => ['enabled' => false],
         ];
     }

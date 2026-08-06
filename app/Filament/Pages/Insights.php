@@ -150,7 +150,7 @@ class Insights extends Page
             Section::make()->contained(false)->gridContainer()->columns(4)->schema([
                 $this->stat(__('projections.kpi.current'), $this->eur($projections['starting_value_eur'] ?? 0), rule: 'neutral'),
                 $this->stat(__('projections.kpi.expected', ['years' => $this->horizon]), $this->eur($projectedValue), rule: 'ink'),
-                $this->stat(__('projections.kpi.growth_rate'), $this->pct($projections['growth_rate'] ?? 0), rule: 'positive', color: 'var(--divio-positive,#2f7d52)'),
+                $this->stat(__('projections.kpi.growth_rate'), $this->pct($projections['growth_rate'] ?? 0), rule: 'positive', color: 'var(--divio-positive)'),
                 $this->stat(__('projections.kpi.dividends', ['years' => $this->horizon]), $this->eur($projectedDividends), rule: 'neutral'),
             ]),
         ]);
