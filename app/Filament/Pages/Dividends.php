@@ -74,8 +74,8 @@ class Dividends extends Page
         return $schema->components([
             Section::make()->contained(false)->gridContainer()->columns(4)->schema([
                 $this->stat(__('dividends.kpi.next_12m'), $this->eur($summary['next_12m_total_eur']), rule: 'ink'),
-                $this->stat(__('dividends.kpi.trailing_12m'), $this->eur($summary['trailing_12m_received_eur']), rule: 'positive', color: 'var(--divio-positive,#2f7d52)'),
-                $this->stat(__('dividends.kpi.yield_on_cost'), $this->pct($summary['yield_on_cost']) ?? '—', rule: 'positive', color: 'var(--divio-positive,#2f7d52)'),
+                $this->stat(__('dividends.kpi.trailing_12m'), $this->eur($summary['trailing_12m_received_eur']), rule: 'positive', color: 'var(--divio-positive)'),
+                $this->stat(__('dividends.kpi.yield_on_cost'), $this->pct($summary['yield_on_cost']) ?? '—', rule: 'positive', color: 'var(--divio-positive)'),
                 $this->stat(__('dividends.kpi.paying_positions'), $summary['instrument_count'], rule: 'neutral'),
             ]),
         ]);

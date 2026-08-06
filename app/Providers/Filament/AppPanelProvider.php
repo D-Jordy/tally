@@ -35,6 +35,9 @@ class AppPanelProvider extends PanelProvider
             ->passwordReset()
             ->emailVerification()
             ->profile()
+            // Every semantic colour is remapped to the divio palette. Filament's stock
+            // success/danger/warning are saturated Tailwind tones that shout next to the
+            // washed KPI figures, and badges/buttons all over the tables use them.
             ->colors([
                 // Ink-weighted neutral scale: primary buttons/links read as #1a1a1a.
                 'primary' => [
@@ -49,6 +52,76 @@ class AppPanelProvider extends PanelProvider
                     800 => '#121212',
                     900 => '#0e0e0e',
                     950 => '#0a0a0a',
+                ],
+                // Warm paper greys, same scale the theme maps Tailwind's gray-* to.
+                'gray' => [
+                    50 => '#f7f6f2',
+                    100 => '#efece4',
+                    200 => '#e6e3da',
+                    300 => '#d8d2c4',
+                    400 => '#c4bfb3',
+                    500 => '#9a9488',
+                    600 => '#8a8474',
+                    700 => '#4a463d',
+                    800 => '#2a2a2a',
+                    900 => '#1a1a1a',
+                    950 => '#141414',
+                ],
+                // 500 = --divio-positive.
+                'success' => [
+                    50 => '#f1f6f2',
+                    100 => '#e6efe6',
+                    200 => '#c9dccf',
+                    300 => '#a3c2ad',
+                    400 => '#7aa588',
+                    500 => '#5a8f6d',
+                    600 => '#4a7a5b',
+                    700 => '#3c6249',
+                    800 => '#2f4d39',
+                    900 => '#26402f',
+                    950 => '#16261c',
+                ],
+                // 500 = --divio-negative; 50/200 are the existing danger bg/border tokens.
+                'danger' => [
+                    50 => '#fbeceb',
+                    100 => '#f6dcd9',
+                    200 => '#ecc4bf',
+                    300 => '#dfa197',
+                    400 => '#c98476',
+                    500 => '#b06a5f',
+                    600 => '#9a584e',
+                    700 => '#7e463e',
+                    800 => '#663832',
+                    900 => '#54302b',
+                    950 => '#2e1815',
+                ],
+                // Warm ochre, taken from the donut palette rather than Tailwind amber.
+                'warning' => [
+                    50 => '#faf5e9',
+                    100 => '#f3e9cf',
+                    200 => '#e6dab2',
+                    300 => '#d6c28c',
+                    400 => '#c4a968',
+                    500 => '#b3924f',
+                    600 => '#997b41',
+                    700 => '#7c6335',
+                    800 => '#63502c',
+                    900 => '#524226',
+                    950 => '#2e2413',
+                ],
+                // Dusty slate, also from the donut palette — Filament's stock info is bright blue.
+                'info' => [
+                    50 => '#f2f5f8',
+                    100 => '#e3eaf0',
+                    200 => '#c3ccd6',
+                    300 => '#9fadbd',
+                    400 => '#7b8da1',
+                    500 => '#5f7186',
+                    600 => '#4d5c6d',
+                    700 => '#3f4a58',
+                    800 => '#343d48',
+                    900 => '#2c333c',
+                    950 => '#1a1f25',
                 ],
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')

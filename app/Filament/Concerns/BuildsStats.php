@@ -25,15 +25,17 @@ trait BuildsStats
 
     protected function signColor(float|int|string $value): string
     {
-        return (float) $value >= 0 ? 'var(--divio-positive,#2f7d52)' : 'var(--divio-negative,#c0392b)';
+        return (float) $value >= 0 ? 'var(--divio-positive)' : 'var(--divio-negative)';
     }
 
     protected function stat(string $label, string|int $value, ?string $rule = null, ?string $sub = null, ?string $color = null): Stat
     {
         $ruleColor = match ($rule) {
-            'ink' => 'var(--divio-ink,#1a1a1a)',
-            'positive' => 'var(--divio-positive,#2f7d52)',
-            'neutral' => '#cdc8ba',
+            'ink' => 'var(--divio-ink)',
+            'positive' => 'var(--divio-positive)',
+            // Same 2px as the other rules, but #cdc8ba sits so close to the card hairline
+            // that it read as a thinner line next to the ink/positive cards.
+            'neutral' => 'var(--divio-muted)',
             default => null,
         };
 

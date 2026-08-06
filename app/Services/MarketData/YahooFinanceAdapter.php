@@ -307,6 +307,13 @@ class YahooFinanceAdapter
 
     private function chart(string $symbol, string $fromDate): array
     {
+        // Callers ask from "latest stored date + 1", which is tomorrow once everything is
+        // synced through today. Yahoo answers 400 on that backwards window, and the caller
+        // logs a warning for what is really "nothing to fetch" — so don't ask.
+        if (Carbon::parse($fromDate)->startOfDay()->isAfter(now())) {
+            return [];
+        }
+
         $response = Http::withHeaders(['User-Agent' => 'Mozilla/5.0'])
             ->timeout(30)
             ->get(self::CHART_URL . "/{$symbol}", [

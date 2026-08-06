@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Actions\ComputePortfolioHistory;
+use App\Support\ChartTheme;
 use App\Support\NumberFormat;
 use Filament\Support\RawJs;
 use Illuminate\Support\Collection;
@@ -35,12 +36,7 @@ class PortfolioValueChart extends ApexChartWidget
         }
 
         return [
-            'chart' => [
-                'type' => 'line',
-                'height' => 300,
-                'toolbar' => ['show' => false],
-                'fontFamily' => 'IBM Plex Mono, monospace',
-            ],
+            'chart' => ChartTheme::chart('line'),
             'series' => [
                 [
                     'name' => __('portfolio.chart.value'),
@@ -59,23 +55,17 @@ class PortfolioValueChart extends ApexChartWidget
                 ],
             ],
             'xaxis' => [
+                ...ChartTheme::xaxis(),
                 'categories' => $history->pluck('date')->all(),
                 'type' => 'datetime',
-                'labels' => ['style' => ['colors' => '#9a9488', 'fontFamily' => 'IBM Plex Mono, monospace']],
-                'axisBorder' => ['show' => false],
-                'axisTicks' => ['show' => false],
             ],
-            'yaxis' => [
-                'labels' => ['style' => ['colors' => '#9a9488', 'fontFamily' => 'IBM Plex Mono, monospace']],
-            ],
-            'colors' => ['#1a1a1a', '#9a9488', '#5a8f6d'],
+            'yaxis' => ChartTheme::yaxis(),
+            'colors' => [ChartTheme::INK, ChartTheme::MUTED, ChartTheme::POSITIVE],
             'stroke' => ['curve' => 'smooth', 'width' => [2.5, 1.5, 1.5], 'dashArray' => [0, 4, 0]],
-            'legend' => ['show' => true, 'fontFamily' => 'IBM Plex Mono, monospace', 'labels' => ['colors' => '#9a9488']],
-            'fill' => [
-                'type' => ['gradient', 'solid', 'solid'],
-                'gradient' => ['shadeIntensity' => 1, 'opacityFrom' => 0.12, 'opacityTo' => 0, 'stops' => [0, 100]],
-            ],
-            'grid' => ['borderColor' => '#ece9e0', 'strokeDashArray' => 0],
+            'legend' => [...ChartTheme::legend(), 'show' => true],
+            // Only the first series is filled; the other two stay bare lines.
+            'fill' => [...ChartTheme::areaFill(), 'type' => ['gradient', 'solid', 'solid']],
+            'grid' => ChartTheme::grid(),
             'dataLabels' => ['enabled' => false],
         ];
     }
@@ -104,36 +94,24 @@ class PortfolioValueChart extends ApexChartWidget
         })->all();
 
         return [
-            'chart' => [
-                'type' => 'area',
-                'height' => 300,
-                'toolbar' => ['show' => false],
-                'fontFamily' => 'IBM Plex Mono, monospace',
-            ],
+            'chart' => ChartTheme::chart('area'),
             'series' => [
                 ['name' => __('portfolio.chart.mode.'.$this->mode), 'data' => $data],
             ],
             'xaxis' => [
+                ...ChartTheme::xaxis(),
                 'categories' => $history->pluck('date')->all(),
                 'type' => 'datetime',
-                'labels' => ['style' => ['colors' => '#9a9488', 'fontFamily' => 'IBM Plex Mono, monospace']],
-                'axisBorder' => ['show' => false],
-                'axisTicks' => ['show' => false],
             ],
-            'yaxis' => [
-                'labels' => ['style' => ['colors' => '#9a9488', 'fontFamily' => 'IBM Plex Mono, monospace']],
-            ],
-            'colors' => ['#1a1a1a'],
+            'yaxis' => ChartTheme::yaxis(),
+            'colors' => [ChartTheme::INK],
             'stroke' => ['curve' => 'smooth', 'width' => 2.5],
             'legend' => ['show' => false],
-            'fill' => [
-                'type' => 'gradient',
-                'gradient' => ['shadeIntensity' => 1, 'opacityFrom' => 0.12, 'opacityTo' => 0, 'stops' => [0, 100]],
-            ],
+            'fill' => ChartTheme::areaFill(),
             'annotations' => [
-                'yaxis' => [['y' => 0, 'borderColor' => '#c4bfb3', 'strokeDashArray' => 4]],
+                'yaxis' => [['y' => 0, 'borderColor' => ChartTheme::FAINT, 'strokeDashArray' => 4]],
             ],
-            'grid' => ['borderColor' => '#ece9e0', 'strokeDashArray' => 0],
+            'grid' => ChartTheme::grid(),
             'dataLabels' => ['enabled' => false],
         ];
     }
@@ -142,6 +120,13 @@ class PortfolioValueChart extends ApexChartWidget
     {
         $jsLocale = NumberFormat::js();
         $plLabel = __('portfolio.chart.pl');
+
+        // Heredocs interpolate variables, not class constants.
+        $mono = ChartTheme::MONO;
+        $muted = ChartTheme::MUTED;
+        $grid = ChartTheme::GRID;
+        $positive = ChartTheme::POSITIVE;
+        $negative = ChartTheme::NEGATIVE;
 
         // Single-series modes: built-in tooltip + matching y-axis formatter is plenty.
         if ($this->mode !== 'value') {
@@ -211,12 +196,12 @@ class PortfolioValueChart extends ApexChartWidget
                     // P/L needs both value and invested visible.
                     if (g.series[0][i] != null && g.series[1][i] != null) {
                         var pl = g.series[0][i] - g.series[1][i];
-                        rows += `<div style='display:flex;justify-content:space-between;gap:16px;border-top:1px solid #ece9e0;margin-top:4px;padding-top:4px;font-weight:600;'>`
+                        rows += `<div style='display:flex;justify-content:space-between;gap:16px;border-top:1px solid {$grid};margin-top:4px;padding-top:4px;font-weight:600;'>`
                             + `<span>{$plLabel}</span>`
-                            + `<span style='font-variant-numeric:tabular-nums;color:` + (pl >= 0 ? `#5a8f6d` : `#b06a5f`) + `;'>` + fmt(pl) + `</span></div>`;
+                            + `<span style='font-variant-numeric:tabular-nums;color:` + (pl >= 0 ? `{$positive}` : `{$negative}`) + `;'>` + fmt(pl) + `</span></div>`;
                     }
-                    return `<div style='padding:8px 12px;font-family:IBM Plex Mono,monospace;font-size:12px;'>`
-                        + `<div style='color:#9a9488;margin-bottom:4px;'>` + date + `</div>` + rows + `</div>`;
+                    return `<div style='padding:8px 12px;font-family:{$mono};font-size:12px;'>`
+                        + `<div style='color:{$muted};margin-bottom:4px;'>` + date + `</div>` + rows + `</div>`;
                 },
             },
         }

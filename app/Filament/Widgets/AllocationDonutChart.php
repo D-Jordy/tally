@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Support\ChartTheme;
 use App\Support\NumberFormat;
 use Filament\Support\RawJs;
 use Leandrocfe\FilamentApexCharts\Widgets\ApexChartWidget;
@@ -21,38 +22,33 @@ abstract class AllocationDonutChart extends ApexChartWidget
      */
     private const PALETTE = ['#c9d6c4', '#e2c9b0', '#d3ccb4', '#dbc3c0', '#c3ccd6', '#e6dab2', '#cbc4b7', '#d8d2c4'];
 
-    /** Instrument/sector names use the sans face everywhere (tables, legends, slices). */
-    private const FONT = 'Inter, sans-serif';
-
     protected function getOptions(): array
     {
         $slices = collect($this->slices);
 
         return [
-            'chart' => [
-                'type' => 'donut',
-                'height' => 300,
-                'fontFamily' => self::FONT,
-            ],
+            // Instrument/sector names use the sans face everywhere (tables, legends, slices),
+            // so this is the one chart that overrides the mono chrome font.
+            'chart' => [...ChartTheme::chart('donut'), 'fontFamily' => ChartTheme::SANS],
             'series' => $slices->map(fn (array $slice): float => (float) $slice['value'])->all(),
             'labels' => $slices->pluck('label')->all(),
             'colors' => self::PALETTE,
-            'stroke' => ['width' => 1, 'colors' => ['#fcfbf8']],
+            'stroke' => ['width' => 1, 'colors' => [ChartTheme::CARD]],
             // Pale slices swallow the default hover tint, so darken hard on hover.
             'states' => [
                 'hover' => ['filter' => ['type' => 'darken', 'value' => 0.75]],
                 'active' => ['filter' => ['type' => 'darken', 'value' => 0.65]],
             ],
             'legend' => [
+                ...ChartTheme::legend(),
                 'position' => 'bottom',
-                'fontFamily' => self::FONT,
-                'labels' => ['colors' => '#8a8474'],
+                'fontFamily' => ChartTheme::SANS,
             ],
             // Ink label colour lives here (PHP side): arrays inside extraJsOptions
             // have broken this donut's render before, so keep them out of the RawJs.
             'dataLabels' => [
                 'enabled' => true,
-                'style' => ['colors' => ['#1a1a1a']],
+                'style' => ['colors' => [ChartTheme::INK]],
             ],
         ];
     }
@@ -60,6 +56,7 @@ abstract class AllocationDonutChart extends ApexChartWidget
     protected function extraJsOptions(): ?RawJs
     {
         $jsLocale = NumberFormat::js();
+        $sans = ChartTheme::SANS;
 
         // Inlined *inside* the formatter on purpose: an array sitting in the options
         // object gets deep-merged by the package and silently kills the donut render.
@@ -80,7 +77,7 @@ abstract class AllocationDonutChart extends ApexChartWidget
                     return label + '  ' + value.toFixed(0) + '%';
                 },
                 style: {
-                    fontFamily: 'Inter, sans-serif',
+                    fontFamily: '{$sans}',
                     fontSize: '10px',
                     fontWeight: 600,
                 },
