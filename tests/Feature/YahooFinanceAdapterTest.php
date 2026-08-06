@@ -56,6 +56,20 @@ class YahooFinanceAdapterTest extends TestCase
         $this->assertNull($adapter->dividendYield('ZERO.AS'));
     }
 
+    public function test_a_from_date_past_today_skips_the_request_instead_of_erroring(): void
+    {
+        Http::fake(['*/v8/finance/chart/*' => Http::response('', 400)]);
+
+        $adapter = app(YahooFinanceAdapter::class);
+
+        // Regression: everything synced through today means fromDate is tomorrow, Yahoo 400s
+        // on the backwards window and every scheduled run logged a fake FX/price failure.
+        $this->assertSame([], $adapter->fxHistory('USD', now()->addDay()->toDateString()));
+        $this->assertSame([], $adapter->history('ASML.AS', now()->addDay()->toDateString()));
+
+        Http::assertNothingSent();
+    }
+
     public function test_quote_summary_gives_up_when_no_crumb_can_be_fetched(): void
     {
         Http::fake([
