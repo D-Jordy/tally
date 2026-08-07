@@ -63,6 +63,13 @@ class InstrumentResourceTest extends TestCase
         $mismatched = $this->heldBy($user, ['quote_currency' => 'EUR']);
         $unpriced = $this->heldBy($user, ['quote_currency' => null]);
 
+        // Instruments are shared and transactions carry no user_id: another holder buying
+        // the same fund on the exchange it is quoted on must not hide your mismatch.
+        Transaction::factory()
+            ->for(Account::factory()->for(User::factory()))
+            ->for($mismatched)
+            ->create(['trade_currency' => 'EUR']);
+
         Livewire::actingAs($user)
             ->test(ListInstruments::class)
             ->filterTable('currency_mismatch')

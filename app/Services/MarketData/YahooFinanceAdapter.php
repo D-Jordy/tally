@@ -315,8 +315,8 @@ class YahooFinanceAdapter
         }
 
         return collect($response->json('quotes') ?? [])
-            ->filter(fn($quote) => in_array($quote['quoteType'] ?? '', ['EQUITY', 'ETF', 'MUTUALFUND']))
-            ->filter(fn($quote) => isset($quote['symbol']))
+            ->filter(fn($quote) => isset($quote['symbol'])
+                && in_array($quote['quoteType'] ?? '', ['EQUITY', 'ETF', 'MUTUALFUND']))
             ->values();
     }
 
