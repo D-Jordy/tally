@@ -2,8 +2,10 @@
 
 namespace App\Services\MarketData;
 
+use App\Services\Import\CurrencyNormaliser;
 use Carbon\Carbon;
 use GuzzleHttp\Cookie\CookieJar;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 
 class YahooFinanceAdapter
@@ -22,13 +24,15 @@ class YahooFinanceAdapter
     private ?CookieJar $cookies = null;
     private ?string    $crumb   = null;
 
-    // DEGIRO exchange code → preferred Yahoo symbol suffix
+    // DEGIRO exchange code → preferred Yahoo symbol suffix.
+    // Yahoo has no line of its own for Tradegate, so TDG maps to the German listing.
     private const EXCHANGE_SUFFIX = [
         'EAM' => '.AS', 'AMS' => '.AS',
         'LSE' => '.L',
-        'XET' => '.DE', 'GER' => '.DE',
+        'XET' => '.DE', 'GER' => '.DE', 'TDG' => '.DE',
         'MAD' => '.MC',
         'EPA' => '.PA',
+        'OMK' => '.CO',
         'NDQ' => '',    'NYS' => '',
     ];
 
@@ -202,25 +206,12 @@ class YahooFinanceAdapter
     /**
      * Search Yahoo Finance for a symbol matching the given ISIN.
      * Returns the best-matching yahoo_symbol string, or null if nothing found.
-     * Pass the DEGIRO exchange code to improve match quality.
+     * Pass the DEGIRO exchange code to improve match quality, and the currency the trade
+     * settled in to rule out a sibling listing quoted in a currency you never paid in.
      */
-    public function searchByIsin(string $isin, ?string $degiroExchange = null): ?string
+    public function searchByIsin(string $isin, ?string $degiroExchange = null, ?string $tradeCurrency = null): ?string
     {
-        $response = Http::withHeaders(['User-Agent' => 'Mozilla/5.0'])
-            ->timeout(15)
-            ->get(self::SEARCH_URL, [
-                'q'           => $isin,
-                'quotesCount' => 10,
-                'newsCount'   => 0,
-                'listsCount'  => 0,
-            ]);
-
-        if (!$response->successful()) {
-            return null;
-        }
-
-        $quotes = collect($response->json('quotes') ?? [])
-            ->filter(fn($q) => in_array($q['quoteType'] ?? '', ['EQUITY', 'ETF', 'MUTUALFUND']));
+        $quotes = $this->searchQuotes($isin);
 
         if ($quotes->isEmpty()) {
             return null;
@@ -229,18 +220,104 @@ class YahooFinanceAdapter
         // If we know the DEGIRO exchange, prefer the symbol with the matching suffix.
         $preferredSuffix = self::EXCHANGE_SUFFIX[strtoupper($degiroExchange ?? '')] ?? null;
 
-        if ($preferredSuffix !== null) {
-            $match = $quotes->first(
-                fn($q) => str_ends_with($q['symbol'], $preferredSuffix)
-            );
-
-            if ($match) {
-                return $match['symbol'];
-            }
-        }
+        $best = $preferredSuffix === null
+            ? null
+            : $quotes->first(fn(array $quote) => str_ends_with($quote['symbol'], $preferredSuffix));
 
         // Fall back to highest-scored result.
-        return $quotes->sortByDesc('score')->first()['symbol'] ?? null;
+        $best ??= $quotes->sortByDesc('score')->first();
+
+        if ($tradeCurrency === null) {
+            return $best['symbol'];
+        }
+
+        return $this->listingInTradeCurrency($quotes, $best, $tradeCurrency) ?? $best['symbol'];
+    }
+
+    /**
+     * A listing of the same instrument quoted in the currency the trade settled in.
+     *
+     * Yahoo happily answers an ISIN with a sibling line of the same fund quoted in another
+     * currency — an ETF bought on Tradegate in EUR resolved to ASHR.L in USD. That hangs the
+     * position on a needless FX leg and, worse for a distributor, reports none of its
+     * dividends. A listing quoted in a currency you never paid in is the wrong listing.
+     *
+     * The search response carries no currency, so candidates are probed for one. A candidate
+     * with no closes loses to the mismatched-but-populated pick: trading a currency mismatch
+     * for an empty chart is not an improvement.
+     *
+     * Returns null when no better listing exists, leaving the caller on its own pick.
+     *
+     * @param  Collection<int, array<string, mixed>>  $quotes
+     * @param  array<string, mixed>  $best
+     */
+    private function listingInTradeCurrency(Collection $quotes, array $best, string $tradeCurrency): ?string
+    {
+        if ($this->quoteCurrency($best['symbol']) === $tradeCurrency) {
+            return $best['symbol'];
+        }
+
+        // An ISIN search often returns the primary line only (exactly one quote for the
+        // Tradegate case), so widen to the fund's other listings by name — accepting a
+        // candidate only when Yahoo reports the very same long name, so we never repoint
+        // at another issuer's tracker of the same index.
+        $siblings = isset($best['longname'])
+            ? $this->searchQuotes($best['longname'])->where('longname', $best['longname'])
+            : collect();
+
+        return $quotes->concat($siblings)
+            ->pluck('symbol')
+            ->unique()
+            ->reject(fn(string $symbol) => $symbol === $best['symbol'])
+            ->first(fn(string $symbol) => $this->quoteCurrency($symbol) === $tradeCurrency);
+    }
+
+    /**
+     * The currency a listing is quoted in, normalised (LSE reports pence), or null when it
+     * has no closes to fetch — a delisted line, or one Yahoo knows by name only.
+     */
+    private function quoteCurrency(string $symbol): ?string
+    {
+        try {
+            $rows = $this->history($symbol, now()->subMonth()->toDateString());
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if (empty($rows)) {
+            return null;
+        }
+
+        $last = end($rows);
+
+        return CurrencyNormaliser::normaliseCurrency($last['currency']);
+    }
+
+    /**
+     * Tradeable quotes matching a free-text query (an ISIN or an instrument name).
+     * Empty on failure, so callers degrade to "no match".
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function searchQuotes(string $query): Collection
+    {
+        $response = Http::withHeaders(['User-Agent' => 'Mozilla/5.0'])
+            ->timeout(15)
+            ->get(self::SEARCH_URL, [
+                'q'           => $query,
+                'quotesCount' => 10,
+                'newsCount'   => 0,
+                'listsCount'  => 0,
+            ]);
+
+        if (!$response->successful()) {
+            return collect();
+        }
+
+        return collect($response->json('quotes') ?? [])
+            ->filter(fn($quote) => isset($quote['symbol'])
+                && in_array($quote['quoteType'] ?? '', ['EQUITY', 'ETF', 'MUTUALFUND']))
+            ->values();
     }
 
     /**

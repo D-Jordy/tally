@@ -66,6 +66,19 @@ class InstrumentsTable
                 Filter::make('missing_sector')
                     ->label(__('instruments.filters.missing_sector'))
                     ->query(fn (Builder $query): Builder => $query->whereNull('sector')),
+                // Priced in a currency none of your fills settled in — usually a sibling
+                // listing of the right fund on the wrong exchange, which costs an FX leg
+                // and reports none of the dividends. Correct the symbol by hand.
+                //
+                // Goes through transactions.account like the resource's own scoping does:
+                // transactions carry no user_id, so matching on the relation directly would
+                // let another holder's fill in the quote currency hide your mismatch.
+                Filter::make('currency_mismatch')
+                    ->label(__('instruments.filters.currency_mismatch'))
+                    ->query(fn (Builder $query): Builder => $query
+                        ->whereNotNull('quote_currency')
+                        ->whereDoesntHave('transactions.account', fn (Builder $query): Builder => $query
+                            ->whereColumn('transactions.trade_currency', 'instruments.quote_currency'))),
             ])
             ->recordActions([
                 ViewAction::make(),

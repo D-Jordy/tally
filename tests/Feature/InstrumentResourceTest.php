@@ -55,6 +55,28 @@ class InstrumentResourceTest extends TestCase
             ->assertCanNotSeeTableRecords([$complete, $noSymbol]);
     }
 
+    public function test_the_currency_mismatch_filter_finds_instruments_priced_off_the_wrong_listing(): void
+    {
+        $user = User::factory()->create();
+        // Factory trades settle in USD, so only an overridden quote currency mismatches.
+        $matching = $this->heldBy($user, ['quote_currency' => 'USD']);
+        $mismatched = $this->heldBy($user, ['quote_currency' => 'EUR']);
+        $unpriced = $this->heldBy($user, ['quote_currency' => null]);
+
+        // Instruments are shared and transactions carry no user_id: another holder buying
+        // the same fund on the exchange it is quoted on must not hide your mismatch.
+        Transaction::factory()
+            ->for(Account::factory()->for(User::factory()))
+            ->for($mismatched)
+            ->create(['trade_currency' => 'EUR']);
+
+        Livewire::actingAs($user)
+            ->test(ListInstruments::class)
+            ->filterTable('currency_mismatch')
+            ->assertCanSeeTableRecords([$mismatched])
+            ->assertCanNotSeeTableRecords([$matching, $unpriced]);
+    }
+
     public function test_a_corrected_symbol_survives_the_resolve_job_and_drops_the_stale_market_data(): void
     {
         $user = User::factory()->create();
