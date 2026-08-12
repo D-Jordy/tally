@@ -134,6 +134,24 @@ class PortfolioPageTest extends TestCase
             ->assertSet('range', '6M');
     }
 
+    /** The one-year button used to be a hardcoded Dutch "1J", in both languages. */
+    public function test_range_labels_follow_the_ui_language(): void
+    {
+        $user = User::factory()->create();
+
+        Livewire::actingAs($user)
+            ->test(Portfolio::class)
+            ->assertSee('1Y')
+            ->assertDontSee('1J');
+
+        app()->setLocale('nl');
+
+        Livewire::actingAs($user)
+            ->test(Portfolio::class)
+            ->assertSee('1J')
+            ->assertSee('ALLES');
+    }
+
     public function test_lists_closed_positions_below_the_open_ones(): void
     {
         $user = User::factory()->create();

@@ -113,7 +113,7 @@ class Portfolio extends Page
         return $schema->components([
             ToggleButtons::make('range')
                 ->hiddenLabel()
-                ->options(['1M' => '1M', '6M' => '6M', '1Y' => '1J', 'ALL' => 'ALL'])
+                ->options(collect(['1M', '6M', '1Y', 'ALL'])->mapWithKeys(fn (string $range): array => [$range => __('portfolio.chart.range.'.$range)])->all())
                 ->grouped()
                 ->live()
                 ->extraAttributes(['class' => 'divio-segmented']),

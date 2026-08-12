@@ -20,6 +20,12 @@ return [
             'pl' => 'W/V',
             'roi' => 'Rendement',
         ],
+        'range' => [
+            '1M' => '1M',
+            '6M' => '6M',
+            '1Y' => '1J',
+            'ALL' => 'ALLES',
+        ],
     ],
 
     'kpi' => [

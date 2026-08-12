@@ -14,4 +14,9 @@ return [
     'projections' => [
         'section' => 'Projecties',
     ],
+
+    'empty' => [
+        'title' => 'Nog niets te analyseren',
+        'subtitle' => 'Allocatie en projecties verschijnen zodra je een positie hebt.',
+    ],
 ];

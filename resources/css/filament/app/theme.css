@@ -1,4 +1,17 @@
-@import 'https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&family=Spectral:wght@400;500;600;700&display=swap';
+/* Self-hosted webfonts. Tally runs on your own box — a CDN @import would phone
+   Google on every page load and leave the panel unstyled on an offline install.
+   Latin subset only, and only the weights the theme actually asks for. */
+@import '@fontsource/inter/latin-400.css';
+@import '@fontsource/inter/latin-500.css';
+@import '@fontsource/inter/latin-600.css';
+@import '@fontsource/inter/latin-700.css';
+@import '@fontsource/spectral/latin-400.css';
+@import '@fontsource/spectral/latin-500.css';
+@import '@fontsource/spectral/latin-600.css';
+@import '@fontsource/spectral/latin-700.css';
+@import '@fontsource/ibm-plex-mono/latin-400.css';
+@import '@fontsource/ibm-plex-mono/latin-500.css';
+@import '@fontsource/ibm-plex-mono/latin-600.css';
 @import '../../../../vendor/filament/filament/resources/css/theme.css';
 
 @source '../../../../app/Filament/**/*';
@@ -48,8 +61,11 @@
     --divio-row-divider: #ece9e0;
     --divio-ink: #1a1a1a;
     --divio-body: #2a2a2a;
-    --divio-muted: #9a9488;
-    --divio-muted-nav: #8a8474;
+    /* Warm greys, darkened to the least that clears WCAG AA (4.5:1 on the card):
+       muted paints the 10px uppercase KPI labels, muted-nav the inactive top-nav
+       items. The old #9a9488/#8a8474 were 2.9:1 and 3.6:1. */
+    --divio-muted: #787367;
+    --divio-muted-nav: #6e695e;
     --divio-faint: #c4bfb3;
     /* Washed-out gain/loss tones — the saturated green/red read too loud against the paper. */
     --divio-positive: #5a8f6d;
@@ -279,4 +295,42 @@ table tbody td {
 .divio-euro .fi-input-wrp-label {
     font-family: var(--font-mono);
     color: var(--divio-muted);
+}
+
+/*
+ * Page layouts our Blade files own. Filament's own grids are already responsive;
+ * these two are not, so they live here rather than as inline styles — an inline
+ * `display:grid` cannot be walked back by a media query.
+ */
+.divio-split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    align-items: start;
+}
+
+.divio-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: -8px;
+}
+
+@media (max-width: 768px) {
+    /* Two donuts side by side are unreadable at phone width; stack them. */
+    .divio-split {
+        grid-template-columns: 1fr;
+    }
+
+    /* Mode + range toggles, and the projection controls, wrap instead of overflowing. */
+    .divio-toolbar,
+    .divio-controls {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .divio-controls {
+        align-items: flex-start;
+    }
 }

@@ -22,6 +22,7 @@ class FilamentInsightsPageTest extends TestCase
     public function test_renders_with_default_horizon(): void
     {
         $user = User::factory()->create();
+        $this->hold($user);
 
         Livewire::actingAs($user)
             ->test(Insights::class)
@@ -32,6 +33,7 @@ class FilamentInsightsPageTest extends TestCase
     public function test_horizon_toggle_updates_the_kpi_label(): void
     {
         $user = User::factory()->create();
+        $this->hold($user);
 
         Livewire::actingAs($user)
             ->test(Insights::class)
@@ -39,9 +41,22 @@ class FilamentInsightsPageTest extends TestCase
             ->assertSee(__('projections.kpi.expected', ['years' => 10]));
     }
 
+    /** Zeroed KPIs and a flat projection say less than nothing to a brand-new user. */
+    public function test_shows_the_empty_state_without_positions(): void
+    {
+        $user = User::factory()->create();
+
+        Livewire::actingAs($user)
+            ->test(Insights::class)
+            ->assertSuccessful()
+            ->assertSee(__('insights.empty.title'))
+            ->assertDontSee(__('projections.kpi.expected', ['years' => 5]));
+    }
+
     public function test_annual_contribution_persists_to_user_settings(): void
     {
         $user = User::factory()->create();
+        $this->hold($user);
 
         Livewire::actingAs($user)
             ->test(Insights::class)
@@ -176,6 +191,16 @@ class FilamentInsightsPageTest extends TestCase
         $this->assertSame('NN', $symbols['NN Group NV']);        // suffix stripped
         $this->assertSame('ASML', $symbols['ASML Holding']);      // explicit symbol wins
         $this->assertSame('Mystery Fund', $symbols['Mystery Fund']); // falls back to the name
+    }
+
+    /** One priced position, so the page renders its charts instead of the empty state. */
+    private function hold(User $user): void
+    {
+        $account = Account::factory()->for($user)->create();
+        $instrument = Instrument::factory()->create(['name' => 'ASML']);
+
+        $this->buy($account, $instrument, 10, 90);
+        $this->price($instrument, 90);
     }
 
     private function buy(Account $account, Instrument $instrument, float $qty, float $price): void

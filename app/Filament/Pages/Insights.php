@@ -61,6 +61,12 @@ class Insights extends Page
         $this->allocation = $this->computeAllocation();
     }
 
+    /** Allocation only has a total when something is held and priced. */
+    public function hasPositions(): bool
+    {
+        return ($this->allocation['total_eur'] ?? 0) > 0;
+    }
+
     public function updatedHorizon(): void
     {
         if (! in_array($this->horizon, [1, 3, 5, 10], true)) {
