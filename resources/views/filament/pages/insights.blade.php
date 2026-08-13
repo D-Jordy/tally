@@ -7,6 +7,7 @@
             'label' => $row[$labelKey],
             'title' => $row[$titleKey],
             'value' => $row['value_eur'],
+            'holdings' => $row['holdings'] ?? [],
         ])
         ->all();
 @endphp

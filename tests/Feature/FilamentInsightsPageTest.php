@@ -93,6 +93,26 @@ class FilamentInsightsPageTest extends TestCase
         $this->assertEqualsWithDelta(1.0, collect($allocation['positions'])->sum('weight'), 0.0001);
     }
 
+    public function test_sector_allocation_lists_its_holdings(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+
+        $big = Instrument::factory()->create(['name' => 'ASML', 'sector' => 'Technology']);
+        $small = Instrument::factory()->create(['name' => 'Adyen', 'sector' => 'Technology']);
+
+        $this->buy($account, $big, 10, 90);
+        $this->price($big, 90);
+        $this->buy($account, $small, 10, 30);
+        $this->price($small, 30);
+
+        $allocation = Livewire::actingAs($user)->test(Insights::class)->get('allocation');
+        $sectors = collect($allocation['sectors'])->keyBy('sector');
+
+        // Ordered by value, so the tooltip reads biggest holding first.
+        $this->assertSame(['ASML', 'Adyen'], $sectors['Technology']['holdings']);
+    }
+
     public function test_reinvest_toggle_persists_and_lifts_the_projection(): void
     {
         $user = User::factory()->create();

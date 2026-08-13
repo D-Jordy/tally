@@ -13,7 +13,7 @@ use Leandrocfe\FilamentApexCharts\Widgets\ApexChartWidget;
  */
 abstract class AllocationDonutChart extends ApexChartWidget
 {
-    /** @var array<int, array{label: string, title: string, value: float}> */
+    /** @var array<int, array{label: string, title: string, value: float, holdings?: array<int, string>}> */
     public array $slices = [];
 
     /**
@@ -61,9 +61,14 @@ abstract class AllocationDonutChart extends ApexChartWidget
         // Inlined *inside* the formatter on purpose: an array sitting in the options
         // object gets deep-merged by the package and silently kills the donut render.
         // Single-quoted, because this JS ends up in a double-quoted x-data attribute.
-        $titles = collect($this->slices)
-            ->pluck('title')
-            ->map(fn (string $title): string => "'".addcslashes($title, "'\\")."'")
+        $quote = fn (string $value): string => "'".addcslashes($value, "'\\")."'";
+
+        $titles = collect($this->slices)->pluck('title')->map($quote)->implode(', ');
+
+        // Tooltip values are injected as innerHTML: escape each name, then stack them
+        // one per line — side by side a broad sector blows the tooltip up.
+        $holdings = collect($this->slices)
+            ->map(fn (array $slice): string => $quote(collect($slice['holdings'] ?? [])->map(fn (string $name): string => e($name))->implode('<br>')))
             ->implode(', ');
 
         return RawJs::make(<<<JS
@@ -92,10 +97,19 @@ abstract class AllocationDonutChart extends ApexChartWidget
                             return (full || label) + ':';
                         },
                     },
-                    formatter: function (value) {
-                        return new Intl.NumberFormat('{$jsLocale}', {
+                    formatter: function (value, opts) {
+                        var amount = new Intl.NumberFormat('{$jsLocale}', {
                             style: 'currency', currency: 'EUR', maximumFractionDigits: 0,
                         }).format(value);
+                        // Sector slices list the holdings they bundle; position slices have none.
+                        var holdings = [{$holdings}];
+                        var list = opts ? holdings[opts.seriesIndex] : '';
+
+                        // Backticks + single-quoted attribute: this JS lives in a double-quoted
+                        // x-data attribute, so one double quote anywhere kills the whole chart.
+                        return list
+                            ? amount + `<span style='display:block;margin-top:4px;line-height:1.4;opacity:0.65'>` + list + `</span>`
+                            : amount;
                     },
                 },
             },

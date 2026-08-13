@@ -207,13 +207,14 @@ class Insights extends Page
 
         $sectors = $valued
             ->groupBy(fn (array $position): string => $position['sector'] ?: __('insights.allocation.other'))
-            ->map(fn (Collection $group): float => (float) $group->sum('current_value_eur'))
-            ->sortDesc()
-            ->map(fn (float $value, string $sector): array => [
+            ->map(fn (Collection $group, string $sector): array => [
                 'sector' => $sector,
-                'value_eur' => round($value, 2),
-                'weight' => round($value / $total, 4),
+                'value_eur' => round((float) $group->sum('current_value_eur'), 2),
+                'weight' => round((float) $group->sum('current_value_eur') / $total, 4),
+                // Listed on hover, so the sector slice says which holdings it covers.
+                'holdings' => $group->sortByDesc('current_value_eur')->pluck('name')->all(),
             ])
+            ->sortByDesc('value_eur')
             ->values()
             ->all();
 
