@@ -14,4 +14,9 @@ return [
     'projections' => [
         'section' => 'Projections',
     ],
+
+    'empty' => [
+        'title' => 'Nothing to analyse yet',
+        'subtitle' => 'Allocation and projections appear once you hold a position.',
+    ],
 ];

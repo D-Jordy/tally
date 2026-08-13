@@ -19,7 +19,7 @@ final class ChartTheme
 
     public const INK = '#1a1a1a';          // --divio-ink
 
-    public const MUTED = '#9a9488';        // --divio-muted
+    public const MUTED = '#787367';        // --divio-muted
 
     public const FAINT = '#c4bfb3';        // --divio-faint
 

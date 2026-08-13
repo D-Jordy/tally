@@ -20,6 +20,12 @@ return [
             'pl' => 'P/L',
             'roi' => 'Return',
         ],
+        'range' => [
+            '1M' => '1M',
+            '6M' => '6M',
+            '1Y' => '1Y',
+            'ALL' => 'ALL',
+        ],
     ],
 
     'kpi' => [

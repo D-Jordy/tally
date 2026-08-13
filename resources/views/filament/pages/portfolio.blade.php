@@ -15,7 +15,7 @@
             $wire.$watch('range', (value) => localStorage.setItem('tally.pv.range', value));
             $wire.$watch('mode', (value) => localStorage.setItem('tally.pv.mode', value));
         "
-        style="display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:-8px;"
+        class="divio-toolbar"
     >
         {{ $this->modeControl }}
         {{ $this->rangeControl }}
@@ -32,16 +32,12 @@
     @if ($this->hasPositions())
         @livewire(\App\Filament\Widgets\PositionsTable::class, ['rows' => $this->positions])
     @else
-        <div style="border:1px dashed var(--divio-dashed);background:var(--divio-surface);border-radius:8px;padding:40px;text-align:center;">
-            <div style="display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:8px;background:var(--divio-estimate-bg);font-family:var(--font-serif);font-size:24px;color:var(--divio-estimate-text);">+</div>
-            <div style="margin-top:14px;font-family:var(--font-serif);font-weight:600;font-size:18px;color:var(--divio-ink);">{{ __('portfolio.empty.title') }}</div>
-            <div style="margin-top:6px;font-family:var(--font-sans);font-size:13px;color:var(--divio-muted-nav);">{{ __('portfolio.empty.subtitle') }}</div>
-            <div style="margin-top:16px;">
-                <x-filament::button tag="a" :href="\App\Filament\Resources\Accounts\AccountResource::getUrl('index')">
-                    {{ __('portfolio.empty.import') }}
-                </x-filament::button>
-            </div>
-        </div>
+        <x-divio.empty-state
+            :title="__('portfolio.empty.title')"
+            :subtitle="__('portfolio.empty.subtitle')"
+            :action="\App\Filament\Resources\Accounts\AccountResource::getUrl('index')"
+            :action-label="__('portfolio.empty.import')"
+        />
     @endif
 
     {{-- Closed positions — its own table so the open ones stay the headline. --}}

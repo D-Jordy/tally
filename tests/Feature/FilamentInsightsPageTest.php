@@ -22,6 +22,7 @@ class FilamentInsightsPageTest extends TestCase
     public function test_renders_with_default_horizon(): void
     {
         $user = User::factory()->create();
+        $this->hold($user);
 
         Livewire::actingAs($user)
             ->test(Insights::class)
@@ -32,6 +33,7 @@ class FilamentInsightsPageTest extends TestCase
     public function test_horizon_toggle_updates_the_kpi_label(): void
     {
         $user = User::factory()->create();
+        $this->hold($user);
 
         Livewire::actingAs($user)
             ->test(Insights::class)
@@ -39,9 +41,22 @@ class FilamentInsightsPageTest extends TestCase
             ->assertSee(__('projections.kpi.expected', ['years' => 10]));
     }
 
+    /** Zeroed KPIs and a flat projection say less than nothing to a brand-new user. */
+    public function test_shows_the_empty_state_without_positions(): void
+    {
+        $user = User::factory()->create();
+
+        Livewire::actingAs($user)
+            ->test(Insights::class)
+            ->assertSuccessful()
+            ->assertSee(__('insights.empty.title'))
+            ->assertDontSee(__('projections.kpi.expected', ['years' => 5]));
+    }
+
     public function test_annual_contribution_persists_to_user_settings(): void
     {
         $user = User::factory()->create();
+        $this->hold($user);
 
         Livewire::actingAs($user)
             ->test(Insights::class)
@@ -76,6 +91,26 @@ class FilamentInsightsPageTest extends TestCase
         // Positions sorted by value, weights sum to ~1.
         $this->assertSame('ASML', $allocation['positions'][0]['name']);
         $this->assertEqualsWithDelta(1.0, collect($allocation['positions'])->sum('weight'), 0.0001);
+    }
+
+    public function test_sector_allocation_lists_its_holdings(): void
+    {
+        $user = User::factory()->create();
+        $account = Account::factory()->for($user)->create();
+
+        $big = Instrument::factory()->create(['name' => 'ASML', 'sector' => 'Technology']);
+        $small = Instrument::factory()->create(['name' => 'Adyen', 'sector' => 'Technology']);
+
+        $this->buy($account, $big, 10, 90);
+        $this->price($big, 90);
+        $this->buy($account, $small, 10, 30);
+        $this->price($small, 30);
+
+        $allocation = Livewire::actingAs($user)->test(Insights::class)->get('allocation');
+        $sectors = collect($allocation['sectors'])->keyBy('sector');
+
+        // Ordered by value, so the tooltip reads biggest holding first.
+        $this->assertSame(['ASML', 'Adyen'], $sectors['Technology']['holdings']);
     }
 
     public function test_reinvest_toggle_persists_and_lifts_the_projection(): void
@@ -176,6 +211,16 @@ class FilamentInsightsPageTest extends TestCase
         $this->assertSame('NN', $symbols['NN Group NV']);        // suffix stripped
         $this->assertSame('ASML', $symbols['ASML Holding']);      // explicit symbol wins
         $this->assertSame('Mystery Fund', $symbols['Mystery Fund']); // falls back to the name
+    }
+
+    /** One priced position, so the page renders its charts instead of the empty state. */
+    private function hold(User $user): void
+    {
+        $account = Account::factory()->for($user)->create();
+        $instrument = Instrument::factory()->create(['name' => 'ASML']);
+
+        $this->buy($account, $instrument, 10, 90);
+        $this->price($instrument, 90);
     }
 
     private function buy(Account $account, Instrument $instrument, float $qty, float $price): void
