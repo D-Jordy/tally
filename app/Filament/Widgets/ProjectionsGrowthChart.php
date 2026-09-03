@@ -5,6 +5,7 @@ namespace App\Filament\Widgets;
 use App\Support\ChartTheme;
 use App\Support\NumberFormat;
 use Filament\Support\RawJs;
+use Illuminate\Support\Collection;
 use Leandrocfe\FilamentApexCharts\Widgets\ApexChartWidget;
 
 class ProjectionsGrowthChart extends ApexChartWidget
@@ -12,7 +13,7 @@ class ProjectionsGrowthChart extends ApexChartWidget
     protected static ?string $chartId = 'projectionsGrowthChart';
 
     /**
-     * Value series from ComputeProjections, passed in by the page and refreshed
+     * Monthly value series from ComputeProjections, passed in by the page and refreshed
      * via a :key bound to the horizon + contribution so the widget re-mounts.
      *
      * @var array<int, array<string, mixed>>
@@ -29,26 +30,42 @@ class ProjectionsGrowthChart extends ApexChartWidget
         $series = collect($this->series);
 
         return [
-            'chart' => ChartTheme::chart('area'),
-            'series' => [[
-                'name' => __('projections.chart.value'),
-                'data' => $series->map(fn (array $point): float => (float) $point['projected_value_eur'])->all(),
-            ]],
-            'xaxis' => [
-                ...ChartTheme::xaxis(),
-                'categories' => $series->map(fn (array $point): string => (int) $point['year'] === 0 ? __('projections.chart.now') : (string) $point['year'])->all(),
-                'title' => [
-                    'text' => __('projections.chart.years_axis'),
-                    'style' => ['color' => ChartTheme::MUTED, 'fontFamily' => ChartTheme::MONO],
+            'chart' => ChartTheme::chart('line'),
+            'series' => [
+                [
+                    'name' => __('projections.chart.value'),
+                    'type' => 'area',
+                    'data' => $this->column($series, 'projected_value_eur'),
+                ],
+                // The gap between the two lines is the growth — the rest is your own money.
+                [
+                    'name' => __('projections.chart.contributed'),
+                    'type' => 'line',
+                    'data' => $this->column($series, 'contributed_eur'),
                 ],
             ],
+            'xaxis' => [
+                ...ChartTheme::xaxis(),
+                'categories' => $series->pluck('date')->all(),
+                'type' => 'datetime',
+            ],
             'yaxis' => ChartTheme::yaxis(),
-            'colors' => [ChartTheme::INK],
-            'stroke' => ['curve' => 'smooth', 'width' => 2.5],
-            'fill' => ChartTheme::areaFill(),
+            'colors' => [ChartTheme::INK, ChartTheme::MUTED],
+            'stroke' => ['curve' => 'smooth', 'width' => [2.5, 1.5], 'dashArray' => [0, 4]],
+            'legend' => [...ChartTheme::legend(), 'show' => true],
+            'fill' => [...ChartTheme::areaFill(), 'type' => ['gradient', 'solid']],
             'grid' => ChartTheme::grid(),
             'dataLabels' => ['enabled' => false],
         ];
+    }
+
+    /**
+     * @param  Collection<int, array<string, mixed>>  $series
+     * @return array<int, float>
+     */
+    private function column(Collection $series, string $key): array
+    {
+        return $series->map(fn (array $point): float => (float) $point[$key])->all();
     }
 
     protected function extraJsOptions(): ?RawJs
@@ -65,6 +82,7 @@ class ProjectionsGrowthChart extends ApexChartWidget
                 },
             },
             tooltip: {
+                x: { format: 'MMM yyyy' },
                 y: {
                     formatter: function (value) {
                         return new Intl.NumberFormat('{$jsLocale}', {
