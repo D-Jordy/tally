@@ -4,7 +4,10 @@ namespace Tests\Feature;
 
 use App\Actions\ComputeProjections;
 use App\Filament\Pages\Insights;
+use App\Filament\Widgets\ContributionsBarChart;
+use App\Filament\Widgets\ProjectionsGrowthChart;
 use App\Models\Account;
+use App\Models\CashMovement;
 use App\Models\Dividend;
 use App\Models\Instrument;
 use App\Models\PriceHistory;
@@ -53,17 +56,103 @@ class FilamentInsightsPageTest extends TestCase
             ->assertDontSee(__('projections.kpi.expected', ['years' => 5]));
     }
 
-    public function test_annual_contribution_persists_to_user_settings(): void
+    public function test_monthly_contribution_persists_to_user_settings(): void
     {
         $user = User::factory()->create();
         $this->hold($user);
 
         Livewire::actingAs($user)
             ->test(Insights::class)
-            ->set('annualContribution', 6000)
+            ->set('monthlyContribution', 500)
             ->assertSuccessful();
 
-        $this->assertSame(6000.0, (float) $user->fresh()->settings['annual_contribution_eur']);
+        $this->assertSame(500.0, (float) $user->fresh()->settings['monthly_contribution_eur']);
+    }
+
+    public function test_the_contribution_field_starts_at_what_you_actually_deposit(): void
+    {
+        $user = User::factory()->create();
+        $account = $this->hold($user);
+
+        foreach ([2, 1] as $monthsAgo) {
+            CashMovement::factory()->create([
+                'account_id' => $account->id,
+                'type' => 'deposit',
+                'currency' => 'EUR',
+                'amount' => 300,
+                'occurred_at' => now()->subMonths($monthsAgo)->startOfMonth()->addDays(2),
+            ]);
+        }
+
+        Livewire::actingAs($user)
+            ->test(Insights::class)
+            ->assertSet('monthlyContribution', 200.0)     // €600 over the three months since the first deposit
+            ->assertSee(__('projections.contributions.heading'));
+
+        // The chart widgets only blow up on the real route, never under Livewire::test.
+        $this->actingAs($user)
+            ->get(Insights::getUrl())
+            ->assertSuccessful()
+            ->assertSee(__('projections.contributions.heading'));
+    }
+
+    public function test_saving_a_contribution_drops_the_pre_monthly_setting(): void
+    {
+        $user = User::factory()->create();
+        $user->settings = ['annual_contribution_eur' => 6000];
+        $user->save();
+        $this->hold($user);
+
+        Livewire::actingAs($user)
+            ->test(Insights::class)
+            ->assertSet('monthlyContribution', 500.0)     // the stored yearly amount, per month
+            ->set('monthlyContribution', 250)
+            ->assertSuccessful();
+
+        $this->assertSame(250.0, (float) $user->fresh()->settings['monthly_contribution_eur']);
+        $this->assertArrayNotHasKey('annual_contribution_eur', $user->fresh()->settings);
+    }
+
+    public function test_the_deposit_chart_stays_hidden_until_you_deposit(): void
+    {
+        $user = User::factory()->create();
+        $this->hold($user);
+
+        // Holdings but no deposits: two years of empty bars is worse than no chart.
+        Livewire::actingAs($user)
+            ->test(Insights::class)
+            ->assertSuccessful()
+            ->assertDontSee(__('projections.contributions.heading'));
+    }
+
+    public function test_the_growth_chart_plots_value_against_contributions(): void
+    {
+        $user = User::factory()->create();
+        $this->hold($user);
+
+        $series = app(ComputeProjections::class)->forUser($user, 5)['value_series'];
+
+        // Regression: the contributions line is what makes the gap readable as growth.
+        Livewire::actingAs($user)
+            ->test(ProjectionsGrowthChart::class, ['series' => $series])
+            ->assertSuccessful()
+            ->assertSee(__('projections.chart.value'))
+            ->assertSee(__('projections.chart.contributed'));
+    }
+
+    public function test_the_deposit_chart_only_draws_an_average_line_when_there_is_one(): void
+    {
+        $history = [['month' => now()->format('Y-m'), 'deposited_eur' => 300.0]];
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(ContributionsBarChart::class, ['history' => $history, 'average' => 300.0])
+            ->assertSuccessful()
+            ->assertSee('textAnchor');   // the average line; its label is JSON-escaped in the markup
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(ContributionsBarChart::class, ['history' => $history, 'average' => 0.0])
+            ->assertSuccessful()
+            ->assertDontSee('textAnchor');
     }
 
     public function test_allocation_weights_positions_and_buckets_sectors(): void
@@ -137,7 +226,7 @@ class FilamentInsightsPageTest extends TestCase
 
         Livewire::actingAs($user)
             ->test(Insights::class)
-            ->set('annualContribution', 0)
+            ->set('monthlyContribution', 0)
             ->set('horizon', 10)
             ->assertSee($projected(false))
             ->set('reinvestDividends', true)
@@ -214,13 +303,15 @@ class FilamentInsightsPageTest extends TestCase
     }
 
     /** One priced position, so the page renders its charts instead of the empty state. */
-    private function hold(User $user): void
+    private function hold(User $user): Account
     {
         $account = Account::factory()->for($user)->create();
         $instrument = Instrument::factory()->create(['name' => 'ASML']);
 
         $this->buy($account, $instrument, 10, 90);
         $this->price($instrument, 90);
+
+        return $account;
     }
 
     private function buy(Account $account, Instrument $instrument, float $qty, float $price): void

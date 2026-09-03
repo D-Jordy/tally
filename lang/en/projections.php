@@ -5,7 +5,7 @@ return [
     'title' => 'Projections',
 
     'horizon' => 'Horizon',
-    'annual_contribution' => 'Annual contribution',
+    'monthly_contribution' => 'Monthly contribution',
     'reinvest_dividends' => 'Reinvest dividends',
     'year_suffix' => 'Y',
 
@@ -13,7 +13,7 @@ return [
         'current' => 'Current portfolio',
         'expected' => 'Expected in :years years',
         'growth_rate' => 'Blended growth rate',
-        'dividends' => 'Dividends over :years years',
+        'dividends' => 'Dividend in year :years',
     ],
 
     'chart' => [
@@ -21,5 +21,12 @@ return [
         'value' => 'Value',
         'years_axis' => 'years',
         'now' => 'now',
+        'contributed' => 'Contributed',
+    ],
+
+    'contributions' => [
+        'heading' => 'What you deposited',
+        'deposited' => 'Deposited',
+        'average' => 'avg :amount / month',
     ],
 ];
