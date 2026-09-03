@@ -23,8 +23,12 @@ class ComputeNews
     ];
 
     /**
-     * Yahoo sector name → the SPDR sector ETF whose feed reports on it. Yahoo has no
-     * feed for a sector as such, and the ETF is the closest thing to one that exists.
+     * Yahoo sector name → the ETF whose feed reports on it. Yahoo has no feed for a
+     * sector as such, and the ETF is the closest thing to one that exists.
+     *
+     * SPDR's sector funds throughout, except Real Estate: XLRE's feed carries
+     * "Sector Update: Financial Stocks" and nothing about property, so that one row
+     * uses Vanguard's VNQ. Don't "fix" it back for consistency.
      */
     private const SECTOR_ETF = [
         'Technology' => 'XLK',
@@ -36,7 +40,7 @@ class ComputeNews
         'Energy' => 'XLE',
         'Basic Materials' => 'XLB',
         'Utilities' => 'XLU',
-        'Real Estate' => 'XLRE',
+        'Real Estate' => 'VNQ',
         'Communication Services' => 'XLC',
     ];
 
