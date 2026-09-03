@@ -41,9 +41,11 @@
         )
 
         {{-- Where the contribution estimate comes from: what you actually deposited. --}}
-        @livewire(
-            \App\Filament\Widgets\ContributionsBarChart::class,
-            ['history' => $this->depositHistory(), 'average' => $this->estimatedContribution()],
-        )
+        @if ($this->hasDeposits())
+            @livewire(
+                \App\Filament\Widgets\ContributionsBarChart::class,
+                ['history' => $this->depositHistory(), 'average' => $this->estimatedContribution()],
+            )
+        @endif
     @endunless
 </x-filament-panels::page>

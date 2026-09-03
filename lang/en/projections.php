@@ -13,7 +13,7 @@ return [
         'current' => 'Current portfolio',
         'expected' => 'Expected in :years years',
         'growth_rate' => 'Blended growth rate',
-        'dividends' => 'Dividends over :years years',
+        'dividends' => 'Dividend in year :years',
     ],
 
     'chart' => [

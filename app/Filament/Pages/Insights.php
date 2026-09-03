@@ -79,7 +79,10 @@ class Insights extends Page
     public function updatedMonthlyContribution(): void
     {
         $user = auth()->user();
-        $user->settings = [...$user->settings ?? [], 'monthly_contribution_eur' => max(0, $this->monthlyContribution)];
+        // Drop the pre-monthly key on the way out, so it cannot resurface as a stale fallback.
+        $user->settings = collect([...$user->settings ?? [], 'monthly_contribution_eur' => max(0, $this->monthlyContribution)])
+            ->except('annual_contribution_eur')
+            ->all();
         $user->save();
     }
 
@@ -105,6 +108,12 @@ class Insights extends Page
     public function estimatedContribution(): float
     {
         return (float) ($this->projections()['estimated_monthly_contribution_eur'] ?? 0);
+    }
+
+    /** Two years of empty bars say nothing; the chart is only worth drawing once you deposit. */
+    public function hasDeposits(): bool
+    {
+        return collect($this->depositHistory())->sum('deposited_eur') > 0;
     }
 
     /** @return array<string, mixed> */

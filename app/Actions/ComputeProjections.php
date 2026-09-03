@@ -17,7 +17,7 @@ class ComputeProjections
 
     private const ANALYST_HALF_LIFE_MONTHS = 12;
 
-    private const PRIOR_RATE_MAX = 0.20;        // your own XIRR, however good, is not a forecast above this
+    private const PRIOR_RATE_MAX = 0.20;        // your own XIRR, however good or bad, is not a forecast beyond this
 
     private const PRIOR_SHRINK_YEARS = 3.0;
 
@@ -139,7 +139,9 @@ class ComputeProjections
 
     /**
      * Averaging from the first funded month keeps a three-month-old account from being
-     * divided by twelve.
+     * divided by twelve. A single lump sum therefore reads as a smaller monthly habit — which
+     * beats the alternatives (a median reads zero, counting only funded months reads the whole
+     * lump every month) and the field stays editable either way.
      *
      * @param  Collection<string, float>  $deposits
      */
@@ -223,6 +225,8 @@ class ComputeProjections
             return self::DEFAULT_GROWTH_RATE;
         }
 
+        // Symmetric on purpose: a bad six months is no more a forecast than a good one, so a
+        // losing portfolio is pulled up towards the default exactly as a winning one is pulled down.
         $xirr = max(-self::PRIOR_RATE_MAX, min(self::PRIOR_RATE_MAX, $xirr));
 
         // A few months of history is a sample, not a track record: annualising it and
