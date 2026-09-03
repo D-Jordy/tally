@@ -9,7 +9,7 @@ class FxRate extends Model
     protected $fillable = ['date', 'currency', 'rate_to_eur'];
 
     protected $casts = [
-        'date'        => 'date',
+        'date' => 'date',
         'rate_to_eur' => 'decimal:8',
     ];
 }

@@ -175,7 +175,7 @@ class ComputeProjectionsTest extends TestCase
                 'type' => 'deposit',
                 'currency' => 'EUR',
                 'amount' => 400,
-                'occurred_at' => now()->subMonths($monthsAgo)->startOfMonth()->addDays(3),
+                'occurred_at' => now()->startOfMonth()->subMonths($monthsAgo)->addDays(3),
             ]);
         }
 
@@ -189,6 +189,28 @@ class ComputeProjectionsTest extends TestCase
         $this->assertSame(now()->format('Y-m'), collect($result['deposit_history'])->last()['month']);
         $this->assertEqualsWithDelta(400, collect($result['deposit_history'])->firstWhere('month', now()->subMonths(3)->format('Y-m'))['deposited_eur'], 0.01);
         $this->assertEqualsWithDelta(0, collect($result['deposit_history'])->firstWhere('month', now()->subMonths(2)->format('Y-m'))['deposited_eur'], 0.01);
+    }
+
+    public function test_deposit_months_do_not_collapse_at_month_end(): void
+    {
+        // Regression: stepping months off the 31st overflows (31 Mar -1 month is 3 Mar), so
+        // two buckets collapsed into one and February vanished from the chart.
+        $this->travelTo('2026-03-31');
+
+        $user = User::factory()->create();
+        $result = $this->makeAction([], 10000, $this->oneDepositHistory(10000, 10000))->forUser($user, 5);
+
+        $months = collect($result['deposit_history'])->pluck('month');
+
+        $this->assertCount(24, $months->unique());
+        $this->assertSame($months->sort()->values()->all(), $months->all());
+        $this->assertSame('2026-02', $months[22]);
+        $this->assertSame('2026-03', $months[23]);
+
+        // Same overflow hit the projected dates: every month must be present, in order.
+        $dates = collect($result['value_series'])->pluck('date');
+        $this->assertCount(61, $dates->unique());
+        $this->assertSame('2026-04-01', $dates[1]);
     }
 
     public function test_a_stored_annual_contribution_still_means_the_same_money(): void

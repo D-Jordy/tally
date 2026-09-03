@@ -99,10 +99,10 @@ class ComputeProjections
         ];
     }
 
-    /** Average monthly deposit over the recent past — the default when nothing is set. */
-    public function estimatedMonthlyContribution(User $user): float
+    /** The monthly contribution to project on: your own setting, or what you actually deposit. */
+    public function contributionFor(User $user): float
     {
-        return $this->estimateFrom($this->monthlyDeposits($user));
+        return max(0.0, $this->storedContribution($user) ?? $this->estimateFrom($this->monthlyDeposits($user)));
     }
 
     // -------------------------------------------------------------------------
@@ -119,17 +119,21 @@ class ComputeProjections
     {
         $accountIds = $user->accounts()->pluck('id');
 
+        // Anchored to the 1st: stepping months off the 31st overflows (31 Mar -1 month is
+        // 3 Mar), which collapses two buckets into one and drops a month entirely.
+        $thisMonth = now()->startOfMonth();
+
         $deposited = CashMovement::whereIn('account_id', $accountIds)
             ->where('type', 'deposit')
             ->where('currency', 'EUR')
             ->where('amount', '>', 0)
-            ->where('occurred_at', '>=', now()->subMonths($months - 1)->startOfMonth())
+            ->where('occurred_at', '>=', $thisMonth->copy()->subMonths($months - 1))
             ->get(['occurred_at', 'amount'])
             ->groupBy(fn (CashMovement $movement): string => $movement->occurred_at->format('Y-m'))
             ->map(fn (Collection $group): float => round((float) $group->sum('amount'), 2));
 
         return collect(range($months - 1, 0))
-            ->mapWithKeys(fn (int $offset): array => [now()->subMonths($offset)->format('Y-m') => 0.0])
+            ->mapWithKeys(fn (int $offset): array => [$thisMonth->copy()->subMonths($offset)->format('Y-m') => 0.0])
             ->merge($deposited);
     }
 
@@ -374,10 +378,16 @@ class ComputeProjections
     {
         return [
             'month' => $month,
-            'date' => now()->addMonths($month)->startOfMonth()->toDateString(),
+            'date' => $this->monthDate($month),
             'projected_value_eur' => round(max(0, $value), 2),
             'contributed_eur' => round(max(0, $invested), 2),
         ];
+    }
+
+    /** Anchored to the 1st, or adding months off a 31st skips February entirely. */
+    private function monthDate(int $month): string
+    {
+        return now()->startOfMonth()->addMonths($month)->toDateString();
     }
 
     /** @return array<string, mixed> */
@@ -385,7 +395,7 @@ class ComputeProjections
     {
         return [
             'month' => $month,
-            'date' => now()->addMonths($month)->startOfMonth()->toDateString(),
+            'date' => $this->monthDate($month),
             'projected_dividends_eur' => round(max(0, $dividend), 2),
         ];
     }

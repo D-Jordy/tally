@@ -43,7 +43,8 @@ class ContributionsBarChart extends ApexChartWidget
             'yaxis' => ChartTheme::yaxis(),
             'colors' => [ChartTheme::POSITIVE],
             'plotOptions' => ['bar' => ['columnWidth' => '52%', 'borderRadius' => 2]],
-            'annotations' => ['yaxis' => [[
+            // No deposits yet: a dashed line at zero is noise, not a reference.
+            'annotations' => $this->average <= 0 ? [] : ['yaxis' => [[
                 'y' => round($this->average, 2),
                 'borderColor' => ChartTheme::INK,
                 'strokeDashArray' => 4,

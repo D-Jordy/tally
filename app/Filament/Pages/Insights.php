@@ -57,10 +57,7 @@ class Insights extends Page
         $settings = auth()->user()->settings ?? [];
 
         // Nothing set yet: start from what you actually deposit rather than from zero.
-        $this->monthlyContribution = (float) ($settings['monthly_contribution_eur']
-            ?? (isset($settings['annual_contribution_eur'])
-                ? $settings['annual_contribution_eur'] / 12
-                : app(ComputeProjections::class)->estimatedMonthlyContribution(auth()->user())));
+        $this->monthlyContribution = app(ComputeProjections::class)->contributionFor(auth()->user());
 
         $this->reinvestDividends = (bool) ($settings['reinvest_dividends'] ?? false);
         $this->allocation = $this->computeAllocation();

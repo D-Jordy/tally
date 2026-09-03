@@ -12,7 +12,7 @@ class PriceHistory extends Model
     protected $fillable = ['instrument_id', 'date', 'close', 'currency'];
 
     protected $casts = [
-        'date'  => 'date',
+        'date' => 'date',
         'close' => 'decimal:8',
     ];
 

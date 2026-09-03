@@ -43,7 +43,7 @@ class SyncMarketDataJob implements ShouldQueue
                 $analyst = $yahoo->analystData($instrument->yahoo_symbol);
                 $instrument->update([
                     'analyst_target_price' => $analyst['target_price'],
-                    'analyst_rating'       => $analyst['rating'],
+                    'analyst_rating' => $analyst['rating'],
                 ]);
             } catch (\Throwable $e) {
                 Log::error("SyncMarketData analyst: {$instrument->yahoo_symbol} failed", [
