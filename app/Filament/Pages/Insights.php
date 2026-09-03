@@ -34,7 +34,7 @@ class Insights extends Page
 
     public int $horizon = 5;
 
-    public float $annualContribution = 0;
+    public float $monthlyContribution = 0;
 
     public bool $reinvestDividends = false;
 
@@ -56,7 +56,12 @@ class Insights extends Page
     {
         $settings = auth()->user()->settings ?? [];
 
-        $this->annualContribution = (float) ($settings['annual_contribution_eur'] ?? 0);
+        // Nothing set yet: start from what you actually deposit rather than from zero.
+        $this->monthlyContribution = (float) ($settings['monthly_contribution_eur']
+            ?? (isset($settings['annual_contribution_eur'])
+                ? $settings['annual_contribution_eur'] / 12
+                : app(ComputeProjections::class)->estimatedMonthlyContribution(auth()->user())));
+
         $this->reinvestDividends = (bool) ($settings['reinvest_dividends'] ?? false);
         $this->allocation = $this->computeAllocation();
     }
@@ -74,10 +79,10 @@ class Insights extends Page
         }
     }
 
-    public function updatedAnnualContribution(): void
+    public function updatedMonthlyContribution(): void
     {
         $user = auth()->user();
-        $user->settings = [...$user->settings ?? [], 'annual_contribution_eur' => max(0, $this->annualContribution)];
+        $user->settings = [...$user->settings ?? [], 'monthly_contribution_eur' => max(0, $this->monthlyContribution)];
         $user->save();
     }
 
@@ -94,14 +99,25 @@ class Insights extends Page
         return $this->projections()['value_series'] ?? [];
     }
 
+    /** @return array<int, array<string, mixed>> */
+    public function depositHistory(): array
+    {
+        return $this->projections()['deposit_history'] ?? [];
+    }
+
+    public function estimatedContribution(): float
+    {
+        return (float) ($this->projections()['estimated_monthly_contribution_eur'] ?? 0);
+    }
+
     /** @return array<string, mixed> */
     private function projections(): array
     {
-        $key = $this->horizon.'|'.$this->annualContribution.'|'.(int) $this->reinvestDividends;
+        $key = $this->horizon.'|'.$this->monthlyContribution.'|'.(int) $this->reinvestDividends;
 
         if ($this->projectionsKey !== $key) {
             $this->projections = app(ComputeProjections::class)
-                ->forUser(auth()->user(), $this->horizon, $this->annualContribution, $this->reinvestDividends);
+                ->forUser(auth()->user(), $this->horizon, $this->monthlyContribution, $this->reinvestDividends);
             $this->projectionsKey = $key;
         }
 
@@ -131,11 +147,11 @@ class Insights extends Page
                     ->live()
                     ->grow(false)
                     ->extraAttributes(['class' => 'divio-switch']),
-                TextInput::make('annualContribution')
-                    ->label(__('projections.annual_contribution'))
+                TextInput::make('monthlyContribution')
+                    ->label(__('projections.monthly_contribution'))
                     ->numeric()
                     ->minValue(0)
-                    ->step(100)
+                    ->step(50)
                     ->prefix('€')
                     ->live(debounce: '600ms')
                     ->grow(false)

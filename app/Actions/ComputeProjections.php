@@ -2,17 +2,32 @@
 
 namespace App\Actions;
 
+use App\Models\CashMovement;
 use App\Models\Instrument;
 use App\Models\User;
 use App\Support\XirrCalculator;
+use Carbon\Carbon;
+use Illuminate\Support\Collection;
 
 class ComputeProjections
 {
-    private const DEFAULT_GROWTH_RATE = 0.07;   // fallback if XIRR cannot converge
-    private const BLEND_ANALYST_WEIGHT = 0.5;   // analyst share in year 1
-    private const ANALYST_DECAY        = 0.5;   // that share halves each year after
-    private const GROWTH_RATE_MIN     = -0.50;
-    private const GROWTH_RATE_MAX     = 0.50;
+    private const DEFAULT_GROWTH_RATE = 0.07;   // fallback, and what a short track record shrinks onto
+
+    private const BLEND_ANALYST_WEIGHT = 0.25;  // analyst share in month 1
+
+    private const ANALYST_HALF_LIFE_MONTHS = 12;
+
+    private const PRIOR_RATE_MAX = 0.20;        // your own XIRR, however good, is not a forecast above this
+
+    private const PRIOR_SHRINK_YEARS = 3.0;
+
+    private const GROWTH_RATE_MIN = -0.50;
+
+    private const GROWTH_RATE_MAX = 0.50;
+
+    private const DEPOSIT_HISTORY_MONTHS = 24;
+
+    private const CONTRIBUTION_WINDOW_MONTHS = 12;
 
     public function __construct(
         private ComputePortfolio $portfolio,
@@ -21,83 +36,143 @@ class ComputeProjections
     ) {}
 
     /**
-     * Build the projection payload for a user.
-     *
-     * @return array{
-     *   horizon_years: int,
-     *   growth_rate: float,
-     *   prior_rate: float,
-     *   analyst_rate: float,
-     *   annual_contribution_eur: float,
-     *   starting_value_eur: float,
-     *   value_series: array<int, array{year: int, projected_value_eur: float}>,
-     *   dividend_series: array<int, array{year: int, projected_dividends_eur: float}>,
-     * }
-     */
-    /**
-     * `$annualContribution` and `$reinvestDividends` override the stored settings, so a
+     * `$monthlyContribution` and `$reinvestDividends` override the stored settings, so a
      * caller holding a not-yet-persisted value (the Insights form) never projects on
      * stale input.
      */
     public function forUser(
         User $user,
         int $horizonYears = 5,
-        ?float $annualContribution = null,
+        ?float $monthlyContribution = null,
         ?bool $reinvestDividends = null,
     ): array {
         $horizonYears = max(1, min(10, $horizonYears));
 
-        $portfolioData   = $this->portfolio->forUser($user);
-        $positions       = $portfolioData['positions'];
-        $totalValueEur   = (float) ($portfolioData['summary']['total_value_eur'] ?? 0);
+        $portfolioData = $this->portfolio->forUser($user);
+        $positions = $portfolioData['positions'];
+        $totalValueEur = (float) ($portfolioData['summary']['total_value_eur'] ?? 0);
 
-        $priorRate   = $this->computePriorRate($user, $totalValueEur);
+        $history = $this->history->forUser($user);
+        $cashFlows = $this->depositCashFlows($history);
+
+        $priorRate = $this->computePriorRate($cashFlows, $totalValueEur);
         $analystRate = $this->computeAnalystRate($positions, $priorRate);
-        $yearlyRates = $this->yearlyRates($priorRate, $analystRate, $horizonYears);
+        $monthlyRates = $this->monthlyRates($priorRate, $analystRate, $horizonYears * 12);
 
-        $annualContribution = max(0.0, $annualContribution ?? (float) ($user->settings['annual_contribution_eur'] ?? 0));
-        $reinvestDividends  = $reinvestDividends ?? (bool) ($user->settings['reinvest_dividends'] ?? false);
+        $depositHistory = $this->monthlyDeposits($user);
+        $estimatedContribution = $this->estimateFrom($depositHistory);
 
-        $dividendData       = $this->dividends->forUser($user);
+        $monthlyContribution = max(0.0, $monthlyContribution ?? $this->storedContribution($user) ?? $estimatedContribution);
+        $reinvestDividends = $reinvestDividends ?? (bool) ($user->settings['reinvest_dividends'] ?? false);
+
+        $dividendData = $this->dividends->forUser($user);
         $startingDividendEur = (float) ($dividendData['summary']['next_12m_total_eur'] ?? 0);
 
         $dividendYield = $totalValueEur > 0 ? $startingDividendEur / $totalValueEur : 0.0;
-        $growthRate    = $this->effectiveRate($yearlyRates, $dividendYield, $reinvestDividends);
+        $growthRate = $this->effectiveRate($monthlyRates, $dividendYield, $reinvestDividends);
 
         ['value' => $valueSeries, 'dividend' => $dividendSeries] = $this->buildSeries(
             $totalValueEur,
+            $this->investedEur($history),
             $dividendYield,
-            $yearlyRates,
-            $annualContribution,
+            $monthlyRates,
+            $monthlyContribution,
             $reinvestDividends,
         );
 
         return [
-            'horizon_years'          => $horizonYears,
-            'growth_rate'            => round($growthRate, 4),
-            'prior_rate'             => round($priorRate, 4),
-            'analyst_rate'           => round($analystRate, 4),
-            'annual_contribution_eur' => $annualContribution,
-            'reinvest_dividends'     => $reinvestDividends,
-            'starting_value_eur'     => round($totalValueEur, 2),
-            'value_series'           => $valueSeries,
-            'dividend_series'        => $dividendSeries,
+            'horizon_years' => $horizonYears,
+            'growth_rate' => round($growthRate, 4),
+            'prior_rate' => round($priorRate, 4),
+            'analyst_rate' => round($analystRate, 4),
+            'monthly_contribution_eur' => $monthlyContribution,
+            'estimated_monthly_contribution_eur' => $estimatedContribution,
+            'reinvest_dividends' => $reinvestDividends,
+            'starting_value_eur' => round($totalValueEur, 2),
+            'invested_eur' => round($this->investedEur($history), 2),
+            'value_series' => $valueSeries,
+            'dividend_series' => $dividendSeries,
+            'deposit_history' => $depositHistory
+                ->map(fn (float $amount, string $month): array => ['month' => $month, 'deposited_eur' => $amount])
+                ->values()
+                ->all(),
         ];
+    }
+
+    /** Average monthly deposit over the recent past — the default when nothing is set. */
+    public function estimatedMonthlyContribution(User $user): float
+    {
+        return $this->estimateFrom($this->monthlyDeposits($user));
+    }
+
+    // -------------------------------------------------------------------------
+    // Contributions
+    // -------------------------------------------------------------------------
+
+    /**
+     * EUR deposits per calendar month, zero-filled so a month without a deposit still
+     * plots (and still drags the average down).
+     *
+     * @return Collection<string, float> keyed 'Y-m', oldest first
+     */
+    private function monthlyDeposits(User $user, int $months = self::DEPOSIT_HISTORY_MONTHS): Collection
+    {
+        $accountIds = $user->accounts()->pluck('id');
+
+        $deposited = CashMovement::whereIn('account_id', $accountIds)
+            ->where('type', 'deposit')
+            ->where('currency', 'EUR')
+            ->where('amount', '>', 0)
+            ->where('occurred_at', '>=', now()->subMonths($months - 1)->startOfMonth())
+            ->get(['occurred_at', 'amount'])
+            ->groupBy(fn (CashMovement $movement): string => $movement->occurred_at->format('Y-m'))
+            ->map(fn (Collection $group): float => round((float) $group->sum('amount'), 2));
+
+        return collect(range($months - 1, 0))
+            ->mapWithKeys(fn (int $offset): array => [now()->subMonths($offset)->format('Y-m') => 0.0])
+            ->merge($deposited);
+    }
+
+    /**
+     * Averaging from the first funded month keeps a three-month-old account from being
+     * divided by twelve.
+     *
+     * @param  Collection<string, float>  $deposits
+     */
+    private function estimateFrom(Collection $deposits): float
+    {
+        $funded = $deposits
+            ->slice(-self::CONTRIBUTION_WINDOW_MONTHS)
+            ->skipUntil(fn (float $amount): bool => $amount > 0);
+
+        return $funded->isEmpty() ? 0.0 : round((float) $funded->avg(), 2);
+    }
+
+    private function storedContribution(User $user): ?float
+    {
+        $settings = $user->settings ?? [];
+
+        if (isset($settings['monthly_contribution_eur'])) {
+            return (float) $settings['monthly_contribution_eur'];
+        }
+
+        // Pre-monthly setting: a stored yearly amount still means the same money.
+        return isset($settings['annual_contribution_eur'])
+            ? (float) $settings['annual_contribution_eur'] / 12
+            : null;
     }
 
     // -------------------------------------------------------------------------
     // Growth-rate components
     // -------------------------------------------------------------------------
 
-    private function computePriorRate(User $user, float $totalValueEur): float
+    /**
+     * Deposits derived from daily net_gain: cumDeposits = total_value_eur - net_gain_eur.
+     *
+     * @return array<int, array{amount: float, date: string}>
+     */
+    private function depositCashFlows(array $history): array
     {
-        $history = $this->history->forUser($user);
-
-        if (empty($history)) {
-            return self::DEFAULT_GROWTH_RATE;
-        }
-
-        // Derive deposits from daily net_gain: cumDeposits = total_value_eur - net_gain_eur
         $cashFlows = [];
         $prevCumDeposits = 0.0;
 
@@ -112,22 +187,47 @@ class ComputeProjections
             $prevCumDeposits = $cumDeposits;
         }
 
-        if (empty($cashFlows)) {
+        return $cashFlows;
+    }
+
+    private function investedEur(array $history): float
+    {
+        if ($history === []) {
+            return 0.0;
+        }
+
+        $last = end($history);
+
+        return (float) $last['total_value_eur'] - (float) $last['net_gain_eur'];
+    }
+
+    /**
+     * @param  array<int, array{amount: float, date: string}>  $cashFlows
+     */
+    private function computePriorRate(array $cashFlows, float $totalValueEur): float
+    {
+        if ($cashFlows === [] || $totalValueEur <= 0) {
             return self::DEFAULT_GROWTH_RATE;
         }
 
-        // Final portfolio value as inflow.
-        if ($totalValueEur > 0) {
-            $cashFlows[] = ['amount' => $totalValueEur, 'date' => now()->toDateString()];
-        }
-
-        $xirr = XirrCalculator::calculate($cashFlows);
+        $xirr = XirrCalculator::calculate([
+            ...$cashFlows,
+            ['amount' => $totalValueEur, 'date' => now()->toDateString()],
+        ]);
 
         if ($xirr === null) {
             return self::DEFAULT_GROWTH_RATE;
         }
 
-        return max(self::GROWTH_RATE_MIN, min(self::GROWTH_RATE_MAX, $xirr));
+        $xirr = max(-self::PRIOR_RATE_MAX, min(self::PRIOR_RATE_MAX, $xirr));
+
+        // A few months of history is a sample, not a track record: annualising it and
+        // compounding that for a decade is how a good year becomes a 40% forecast. Shrink
+        // onto the long-run default until PRIOR_SHRINK_YEARS of history back it up.
+        $years = Carbon::parse($cashFlows[0]['date'])->diffInDays(now()) / 365.0;
+        $confidence = min(1.0, $years / self::PRIOR_SHRINK_YEARS);
+
+        return $confidence * $xirr + (1 - $confidence) * self::DEFAULT_GROWTH_RATE;
     }
 
     private function computeAnalystRate(array $positions, float $priorRate): float
@@ -136,9 +236,8 @@ class ComputeProjections
             return $priorRate;
         }
 
-        // Load analyst target prices for held instruments.
         $instrumentIds = array_column($positions, 'instrument_id');
-        $analysts      = Instrument::whereIn('id', $instrumentIds)
+        $analysts = Instrument::whereIn('id', $instrumentIds)
             ->whereNotNull('analyst_target_price')
             ->get(['id', 'analyst_target_price'])
             ->keyBy('id');
@@ -151,18 +250,16 @@ class ComputeProjections
 
         $weightedRate = 0.0;
 
-        foreach ($positions as $pos) {
-            $posValue = (float) ($pos['current_value_eur'] ?? 0);
-            $weight   = $posValue / $totalValue;
+        foreach ($positions as $position) {
+            $weight = (float) ($position['current_value_eur'] ?? 0) / $totalValue;
 
-            $analyst  = $analysts->get($pos['instrument_id']);
-            $latestPrice = (float) ($pos['latest_price'] ?? 0);
+            $analyst = $analysts->get($position['instrument_id']);
+            $latestPrice = (float) ($position['latest_price'] ?? 0);
 
             if ($analyst && $latestPrice > 0.0001) {
-                $target  = (float) $analyst->analyst_target_price;
+                $target = (float) $analyst->analyst_target_price;
                 $implied = ($target - $latestPrice) / $latestPrice;
-                $implied = max(self::GROWTH_RATE_MIN, min(self::GROWTH_RATE_MAX, $implied));
-                $weightedRate += $weight * $implied;
+                $weightedRate += $weight * max(self::GROWTH_RATE_MIN, min(self::GROWTH_RATE_MAX, $implied));
             } else {
                 // No analyst data — this position contributes its weight at the prior rate.
                 $weightedRate += $weight * $priorRate;
@@ -173,52 +270,53 @@ class ComputeProjections
     }
 
     /**
-     * Analyst figures are 12-month price targets, so carrying one as a perpetual annual
-     * growth rate badly overstates the long run (a +50% target became +50% a year, for a
-     * decade). Weight the analyst rate at BLEND_ANALYST_WEIGHT in year 1 and halve that
-     * share every year after, so the projection decays onto the portfolio's own XIRR.
+     * Analyst figures are 12-month price targets, so carrying one as a perpetual growth
+     * rate badly overstates the long run (a +50% target became +50% a year, for a decade).
+     * The analyst share starts at BLEND_ANALYST_WEIGHT and halves every
+     * ANALYST_HALF_LIFE_MONTHS, so the projection decays smoothly onto the portfolio's own
+     * XIRR instead of stepping down once a year.
      *
-     * @return array<int, float> growth rate per year, keyed 1..$horizonYears
+     * @return array<int, float> monthly growth rate, keyed 1..$months
      */
-    private function yearlyRates(float $priorRate, float $analystRate, int $horizonYears): array
+    private function monthlyRates(float $priorRate, float $analystRate, int $months): array
     {
         $rates = [];
 
-        for ($year = 1; $year <= $horizonYears; $year++) {
-            $analystWeight = self::BLEND_ANALYST_WEIGHT * (self::ANALYST_DECAY ** ($year - 1));
-            $rate          = $analystWeight * $analystRate + (1 - $analystWeight) * $priorRate;
+        for ($month = 1; $month <= $months; $month++) {
+            $analystWeight = self::BLEND_ANALYST_WEIGHT * 0.5 ** (($month - 1) / self::ANALYST_HALF_LIFE_MONTHS);
+            $annual = $analystWeight * $analystRate + (1 - $analystWeight) * $priorRate;
+            $annual = max(self::GROWTH_RATE_MIN, min(self::GROWTH_RATE_MAX, $annual));
 
-            $rates[$year] = max(self::GROWTH_RATE_MIN, min(self::GROWTH_RATE_MAX, $rate));
+            $rates[$month] = (1 + $annual) ** (1 / 12) - 1;
         }
 
         return $rates;
     }
 
     /**
-     * The single rate that, compounded over the horizon, reproduces the projection — so the
-     * headline percentage always agrees with the figure shown next to it.
+     * The single annual rate that, compounded over the horizon, reproduces the projection —
+     * so the headline percentage always agrees with the figure shown next to it.
      *
-     * The yearly rates are price growth only. When income is reinvested, capital compounds
-     * at (1 + rate)(1 + yield) each year, so the headline has to carry the yield too —
-     * otherwise it reports 14.4% while the money actually grows at 16.8%.
+     * The monthly rates are price growth only. When income is reinvested, capital compounds
+     * at (1 + rate)(1 + yield/12) each month, so the headline has to carry the yield too.
      *
-     * @param  array<int, float>  $rates
+     * @param  array<int, float>  $monthlyRates
      */
-    private function effectiveRate(array $rates, float $dividendYield, bool $reinvestDividends): float
+    private function effectiveRate(array $monthlyRates, float $dividendYield, bool $reinvestDividends): float
     {
-        if ($rates === []) {
+        if ($monthlyRates === []) {
             return 0.0;
         }
 
-        $incomeFactor = $reinvestDividends ? 1 + $dividendYield : 1.0;
+        $incomeFactor = $reinvestDividends ? 1 + $dividendYield / 12 : 1.0;
 
         $compounded = array_reduce(
-            $rates,
+            $monthlyRates,
             fn (float $carry, float $rate): float => $carry * (1 + $rate) * $incomeFactor,
             1.0,
         );
 
-        return $compounded ** (1 / count($rates)) - 1;
+        return $compounded ** (12 / count($monthlyRates)) - 1;
     }
 
     // -------------------------------------------------------------------------
@@ -226,13 +324,12 @@ class ComputeProjections
     // -------------------------------------------------------------------------
 
     /**
-     * Value and income are projected together because reinvested dividends feed back into
-     * next year's capital.
+     * Value, contributions and income are projected together because reinvested dividends
+     * feed back into next month's capital, and `contributed_eur` is what makes the gap to
+     * the value line readable as growth rather than deposits.
      *
-     * Income is a constant yield on the projected value: it has to scale with the capital
-     * actually invested, otherwise contributions grow the portfolio but never the income it
-     * throws off. With no contributions and no reinvestment this collapses to the original
-     * startDividend * Π(1 + rate).
+     * `projected_dividends_eur` is the annualised run-rate at that month, not the month's
+     * own payout, so the headline stays "income per year at this point in the projection".
      *
      * Adding dividends on top of the growth rate is not double counting: `total_value_eur`
      * is the market value of the holdings only (dividend cash is tracked separately), and
@@ -243,31 +340,53 @@ class ComputeProjections
      */
     private function buildSeries(
         float $startValue,
+        float $startInvested,
         float $dividendYield,
         array $rates,
         float $contribution,
         bool $reinvestDividends,
     ): array {
-        $valueSeries    = [['year' => 0, 'projected_value_eur' => round($startValue, 2)]];
-        $dividendSeries = [['year' => 0, 'projected_dividends_eur' => round($dividendYield * $startValue, 2)]];
+        $valueSeries = [$this->valuePoint(0, $startValue, $startInvested)];
+        $dividendSeries = [$this->dividendPoint(0, $dividendYield * $startValue)];
 
         $value = $startValue;
+        $invested = $startInvested;
 
-        foreach ($rates as $year => $rate) {
-            // Contributions trickle in across the year rather than landing on 31 Dec, so
-            // credit them roughly half a year of growth instead of none at all.
-            $value = $value * (1 + $rate) + $contribution * (1 + $rate / 2);
+        foreach ($rates as $month => $rate) {
+            $value = $value * (1 + $rate) + $contribution;
+            $invested += $contribution;
 
             $dividend = $dividendYield * $value;
 
             if ($reinvestDividends) {
-                $value += $dividend;
+                $value += $dividend / 12;
             }
 
-            $valueSeries[]    = ['year' => $year, 'projected_value_eur' => round(max(0, $value), 2)];
-            $dividendSeries[] = ['year' => $year, 'projected_dividends_eur' => round(max(0, $dividend), 2)];
+            $valueSeries[] = $this->valuePoint($month, $value, $invested);
+            $dividendSeries[] = $this->dividendPoint($month, $dividend);
         }
 
         return ['value' => $valueSeries, 'dividend' => $dividendSeries];
+    }
+
+    /** @return array<string, mixed> */
+    private function valuePoint(int $month, float $value, float $invested): array
+    {
+        return [
+            'month' => $month,
+            'date' => now()->addMonths($month)->startOfMonth()->toDateString(),
+            'projected_value_eur' => round(max(0, $value), 2),
+            'contributed_eur' => round(max(0, $invested), 2),
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function dividendPoint(int $month, float $dividend): array
+    {
+        return [
+            'month' => $month,
+            'date' => now()->addMonths($month)->startOfMonth()->toDateString(),
+            'projected_dividends_eur' => round(max(0, $dividend), 2),
+        ];
     }
 }

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Actions\ComputeProjections;
 use App\Filament\Pages\Insights;
 use App\Models\Account;
+use App\Models\CashMovement;
 use App\Models\Dividend;
 use App\Models\Instrument;
 use App\Models\PriceHistory;
@@ -53,17 +54,44 @@ class FilamentInsightsPageTest extends TestCase
             ->assertDontSee(__('projections.kpi.expected', ['years' => 5]));
     }
 
-    public function test_annual_contribution_persists_to_user_settings(): void
+    public function test_monthly_contribution_persists_to_user_settings(): void
     {
         $user = User::factory()->create();
         $this->hold($user);
 
         Livewire::actingAs($user)
             ->test(Insights::class)
-            ->set('annualContribution', 6000)
+            ->set('monthlyContribution', 500)
             ->assertSuccessful();
 
-        $this->assertSame(6000.0, (float) $user->fresh()->settings['annual_contribution_eur']);
+        $this->assertSame(500.0, (float) $user->fresh()->settings['monthly_contribution_eur']);
+    }
+
+    public function test_the_contribution_field_starts_at_what_you_actually_deposit(): void
+    {
+        $user = User::factory()->create();
+        $account = $this->hold($user);
+
+        foreach ([2, 1] as $monthsAgo) {
+            CashMovement::factory()->create([
+                'account_id' => $account->id,
+                'type' => 'deposit',
+                'currency' => 'EUR',
+                'amount' => 300,
+                'occurred_at' => now()->subMonths($monthsAgo)->startOfMonth()->addDays(2),
+            ]);
+        }
+
+        Livewire::actingAs($user)
+            ->test(Insights::class)
+            ->assertSet('monthlyContribution', 200.0)     // €600 over the three months since the first deposit
+            ->assertSee(__('projections.contributions.heading'));
+
+        // The chart widgets only blow up on the real route, never under Livewire::test.
+        $this->actingAs($user)
+            ->get(Insights::getUrl())
+            ->assertSuccessful()
+            ->assertSee(__('projections.contributions.heading'));
     }
 
     public function test_allocation_weights_positions_and_buckets_sectors(): void
@@ -137,7 +165,7 @@ class FilamentInsightsPageTest extends TestCase
 
         Livewire::actingAs($user)
             ->test(Insights::class)
-            ->set('annualContribution', 0)
+            ->set('monthlyContribution', 0)
             ->set('horizon', 10)
             ->assertSee($projected(false))
             ->set('reinvestDividends', true)
@@ -214,13 +242,15 @@ class FilamentInsightsPageTest extends TestCase
     }
 
     /** One priced position, so the page renders its charts instead of the empty state. */
-    private function hold(User $user): void
+    private function hold(User $user): Account
     {
         $account = Account::factory()->for($user)->create();
         $instrument = Instrument::factory()->create(['name' => 'ASML']);
 
         $this->buy($account, $instrument, 10, 90);
         $this->price($instrument, 90);
+
+        return $account;
     }
 
     private function buy(Account $account, Instrument $instrument, float $qty, float $price): void

@@ -37,7 +37,13 @@
         @livewire(
             \App\Filament\Widgets\ProjectionsGrowthChart::class,
             ['series' => $this->valueSeries()],
-            key('proj-'.$this->horizon.'-'.$this->annualContribution.'-'.(int) $this->reinvestDividends)
+            key('proj-'.$this->horizon.'-'.$this->monthlyContribution.'-'.(int) $this->reinvestDividends)
+        )
+
+        {{-- Where the contribution estimate comes from: what you actually deposited. --}}
+        @livewire(
+            \App\Filament\Widgets\ContributionsBarChart::class,
+            ['history' => $this->depositHistory(), 'average' => $this->estimatedContribution()],
         )
     @endunless
 </x-filament-panels::page>

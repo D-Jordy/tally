@@ -5,7 +5,7 @@ return [
     'title' => 'Projecties',
 
     'horizon' => 'Horizon',
-    'annual_contribution' => 'Jaarlijkse inleg',
+    'monthly_contribution' => 'Maandelijkse inleg',
     'reinvest_dividends' => 'Dividend herbeleggen',
     'year_suffix' => 'J',
 
@@ -21,5 +21,12 @@ return [
         'value' => 'Waarde',
         'years_axis' => 'jaren',
         'now' => 'nu',
+        'contributed' => 'Inleg',
+    ],
+
+    'contributions' => [
+        'heading' => 'Wat je hebt ingelegd',
+        'deposited' => 'Ingelegd',
+        'average' => 'gem. :amount / maand',
     ],
 ];
