@@ -5,8 +5,12 @@ namespace App\Services\MarketData;
 use App\Services\Import\CurrencyNormaliser;
 use Carbon\Carbon;
 use GuzzleHttp\Cookie\CookieJar;
+use Illuminate\Http\Client\Pool;
+use Illuminate\Http\Client\Promises\LazyPromise;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
+use SimpleXMLElement;
 
 class YahooFinanceAdapter
 {
@@ -15,6 +19,7 @@ class YahooFinanceAdapter
     private const QUOTE_SUMMARY_URL = 'https://query2.finance.yahoo.com/v10/finance/quoteSummary';
     private const COOKIE_URL        = 'https://fc.yahoo.com';
     private const CRUMB_URL         = 'https://query2.finance.yahoo.com/v1/test/getcrumb';
+    private const NEWS_URL          = 'https://feeds.finance.yahoo.com/rss/2.0/headline';
 
     /**
      * quoteSummary is cookie+crumb gated — without these Yahoo answers 401 "Invalid Crumb"
@@ -144,6 +149,60 @@ class YahooFinanceAdapter
             'ex_date'  => $exDate,
             'pay_date' => $payTs ? Carbon::createFromTimestamp($payTs)->toDateString() : null,
         ];
+    }
+
+    /**
+     * Headlines per symbol, fetched in one pool. Yahoo's search endpoint is not
+     * symbol-scoped — asking it for ASRNL answers with Lundbeck and Rivian — so this
+     * RSS feed is the only source that actually tracks the instrument. It wants the
+     * suffixed symbol (ASRNL.AS), and a symbol it does not know yields an empty feed.
+     *
+     * @param  array<int, string>  $symbols
+     * @return array<string, array<int, array<string, mixed>>>
+     */
+    public function headlines(array $symbols): array
+    {
+        $responses = Http::pool(fn(Pool $pool): array => collect($symbols)
+            ->map(fn(string $symbol): LazyPromise => $pool->as($symbol)
+                ->withHeaders(['User-Agent' => 'Mozilla/5.0'])
+                ->timeout(15)
+                ->get(self::NEWS_URL, ['s' => $symbol, 'region' => 'US', 'lang' => 'en-US']))
+            ->all());
+
+        return collect($symbols)
+            ->mapWithKeys(fn(string $symbol): array => [$symbol => $this->parseHeadlines($responses[$symbol] ?? null)])
+            ->all();
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function parseHeadlines(mixed $response): array
+    {
+        if (!$response instanceof Response || !$response->successful()) {
+            return [];
+        }
+
+        // Yahoo answers a malformed feed with a 200, so a parse failure is a normal outcome.
+        $feed = @simplexml_load_string($response->body());
+
+        if ($feed === false) {
+            return [];
+        }
+
+        // xpath, not ->channel->item: collecting that node collapses every sibling onto
+        // the same 'item' key and silently leaves you with one headline.
+        return collect($feed->xpath('//item') ?: [])
+            ->map(fn(SimpleXMLElement $item): array => [
+                'id'      => (string) $item->guid ?: (string) $item->title,
+                'title'   => trim((string) $item->title),
+                'summary' => trim((string) $item->description),
+                'url'     => trim((string) $item->link),
+                // UTC ISO, not a Carbon: these rows get cached, and an unserialised Carbon
+                // comes back as an incomplete object. Normalised so a string sort is chronological.
+                'published_at' => Carbon::parse((string) $item->pubDate)->utc()->toIso8601String(),
+            ])
+            ->reject(fn(array $headline): bool => $headline['title'] === '' || $headline['url'] === '')
+            ->values()
+            ->all();
     }
 
     /**
