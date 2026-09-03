@@ -10,16 +10,22 @@ use Illuminate\Http\Client\Promises\LazyPromise;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use SimpleXMLElement;
 
 class YahooFinanceAdapter
 {
-    private const CHART_URL         = 'https://query2.finance.yahoo.com/v8/finance/chart';
-    private const SEARCH_URL        = 'https://query2.finance.yahoo.com/v1/finance/search';
+    private const CHART_URL = 'https://query2.finance.yahoo.com/v8/finance/chart';
+
+    private const SEARCH_URL = 'https://query2.finance.yahoo.com/v1/finance/search';
+
     private const QUOTE_SUMMARY_URL = 'https://query2.finance.yahoo.com/v10/finance/quoteSummary';
-    private const COOKIE_URL        = 'https://fc.yahoo.com';
-    private const CRUMB_URL         = 'https://query2.finance.yahoo.com/v1/test/getcrumb';
-    private const NEWS_URL          = 'https://feeds.finance.yahoo.com/rss/2.0/headline';
+
+    private const COOKIE_URL = 'https://fc.yahoo.com';
+
+    private const CRUMB_URL = 'https://query2.finance.yahoo.com/v1/test/getcrumb';
+
+    private const NEWS_URL = 'https://feeds.finance.yahoo.com/rss/2.0/headline';
 
     /**
      * quoteSummary is cookie+crumb gated — without these Yahoo answers 401 "Invalid Crumb"
@@ -27,7 +33,8 @@ class YahooFinanceAdapter
      * Fetched once per adapter instance and reused for the whole sync run.
      */
     private ?CookieJar $cookies = null;
-    private ?string    $crumb   = null;
+
+    private ?string $crumb = null;
 
     // DEGIRO exchange code → preferred Yahoo symbol suffix.
     // Yahoo has no line of its own for Tradegate, so TDG maps to the German listing.
@@ -58,7 +65,7 @@ class YahooFinanceAdapter
     {
         $rows = $this->parseOhlc($this->chart("{$base}EUR=X", $fromDate));
 
-        return array_map(fn($r) => ['date' => $r['date'], 'rate' => $r['close']], $rows);
+        return array_map(fn ($r) => ['date' => $r['date'], 'rate' => $r['close']], $rows);
     }
 
     /**
@@ -69,25 +76,25 @@ class YahooFinanceAdapter
      */
     public function dividends(string $symbol, string $fromDate): array
     {
-        $result   = $this->chart($symbol, $fromDate);
-        $events   = $result['events']['dividends'] ?? [];
+        $result = $this->chart($symbol, $fromDate);
+        $events = $result['events']['dividends'] ?? [];
         $currency = $result['meta']['currency'] ?? '';
 
         $rows = [];
 
         foreach ($events as $event) {
-            if (!isset($event['date'], $event['amount'])) {
+            if (! isset($event['date'], $event['amount'])) {
                 continue;
             }
 
             $rows[] = [
-                'ex_date'  => Carbon::createFromTimestamp($event['date'])->toDateString(),
-                'amount'   => (float) $event['amount'],
+                'ex_date' => Carbon::createFromTimestamp($event['date'])->toDateString(),
+                'amount' => (float) $event['amount'],
                 'currency' => $currency,
             ];
         }
 
-        usort($rows, fn($a, $b) => $a['ex_date'] <=> $b['ex_date']);
+        usort($rows, fn ($a, $b) => $a['ex_date'] <=> $b['ex_date']);
 
         return $rows;
     }
@@ -106,10 +113,10 @@ class YahooFinanceAdapter
         $last = end($rows);
 
         return [
-            'symbol'   => $symbol,
-            'price'    => $last['close'],
+            'symbol' => $symbol,
+            'price' => $last['close'],
             'currency' => $last['currency'],
-            'date'     => $last['date'],
+            'date' => $last['date'],
         ];
     }
 
@@ -128,14 +135,14 @@ class YahooFinanceAdapter
 
         $calendar = $data['calendarEvents'] ?? null;
 
-        if (!$calendar) {
+        if (! $calendar) {
             return null;
         }
 
-        $exTs  = $calendar['exDividendDate']['raw']  ?? null;
-        $payTs = $calendar['dividendDate']['raw']     ?? null;
+        $exTs = $calendar['exDividendDate']['raw'] ?? null;
+        $payTs = $calendar['dividendDate']['raw'] ?? null;
 
-        if (!$exTs) {
+        if (! $exTs) {
             return null;
         }
 
@@ -146,7 +153,7 @@ class YahooFinanceAdapter
         }
 
         return [
-            'ex_date'  => $exDate,
+            'ex_date' => $exDate,
             'pay_date' => $payTs ? Carbon::createFromTimestamp($payTs)->toDateString() : null,
         ];
     }
@@ -157,52 +164,80 @@ class YahooFinanceAdapter
      * RSS feed is the only source that actually tracks the instrument. It wants the
      * suffixed symbol (ASRNL.AS), and a symbol it does not know yields an empty feed.
      *
+     * A null entry means the fetch failed, as opposed to a feed that is genuinely empty.
+     * The caller has to tell those apart before it decides how long to cache the answer.
+     *
      * @param  array<int, string>  $symbols
-     * @return array<string, array<int, array<string, mixed>>>
+     * @return array<string, array<int, array<string, mixed>>|null>
      */
     public function headlines(array $symbols): array
     {
-        $responses = Http::pool(fn(Pool $pool): array => collect($symbols)
-            ->map(fn(string $symbol): LazyPromise => $pool->as($symbol)
+        $responses = Http::pool(fn (Pool $pool): array => collect($symbols)
+            ->map(fn (string $symbol): LazyPromise => $pool->as($symbol)
                 ->withHeaders(['User-Agent' => 'Mozilla/5.0'])
                 ->timeout(15)
                 ->get(self::NEWS_URL, ['s' => $symbol, 'region' => 'US', 'lang' => 'en-US']))
             ->all());
 
         return collect($symbols)
-            ->mapWithKeys(fn(string $symbol): array => [$symbol => $this->parseHeadlines($responses[$symbol] ?? null)])
+            ->mapWithKeys(fn (string $symbol): array => [$symbol => $this->parseHeadlines($symbol, $responses[$symbol] ?? null)])
             ->all();
     }
 
-    /** @return array<int, array<string, mixed>> */
-    private function parseHeadlines(mixed $response): array
+    /** @return array<int, array<string, mixed>>|null */
+    private function parseHeadlines(string $symbol, mixed $response): ?array
     {
-        if (!$response instanceof Response || !$response->successful()) {
-            return [];
+        if (! $response instanceof Response) {
+            Log::warning("News: {$symbol} could not be reached");
+
+            return null;
         }
 
-        // Yahoo answers a malformed feed with a 200, so a parse failure is a normal outcome.
+        if (! $response->successful()) {
+            Log::warning("News: {$symbol} failed", ['status' => $response->status()]);
+
+            return null;
+        }
+
+        // Yahoo answers a malformed feed with a 200, so a parse failure is a runtime outcome.
         $feed = @simplexml_load_string($response->body());
 
         if ($feed === false) {
-            return [];
+            Log::warning("News: {$symbol} returned an unparseable feed");
+
+            return null;
         }
 
         // xpath, not ->channel->item: collecting that node collapses every sibling onto
         // the same 'item' key and silently leaves you with one headline.
-        return collect($feed->xpath('//item') ?: [])
-            ->map(fn(SimpleXMLElement $item): array => [
-                'id'      => (string) $item->guid ?: (string) $item->title,
-                'title'   => trim((string) $item->title),
-                'summary' => trim((string) $item->description),
-                'url'     => trim((string) $item->link),
+        $headlines = collect($feed->xpath('//item') ?: [])
+            ->map(fn (SimpleXMLElement $item): array => [
+                'id' => (string) $item->guid ?: (string) $item->title,
+                'title' => trim((string) $item->title),
+                'summary' => trim(strip_tags((string) $item->description)),
+                'url' => trim((string) $item->link),
                 // UTC ISO, not a Carbon: these rows get cached, and an unserialised Carbon
                 // comes back as an incomplete object. Normalised so a string sort is chronological.
                 'published_at' => Carbon::parse((string) $item->pubDate)->utc()->toIso8601String(),
             ])
-            ->reject(fn(array $headline): bool => $headline['title'] === '' || $headline['url'] === '')
+            ->reject(fn (array $headline): bool => $headline['title'] === '' || ! $this->isWebLink($headline['url']))
             ->values()
             ->all();
+
+        if ($headlines === []) {
+            Log::warning("News: {$symbol} returned no headlines — Yahoo may not know this symbol");
+        }
+
+        return $headlines;
+    }
+
+    /**
+     * Feed links land straight in an href, and the feed is third-party: a javascript:
+     * or data: URL would run on click.
+     */
+    private function isWebLink(string $url): bool
+    {
+        return in_array(strtolower((string) parse_url($url, PHP_URL_SCHEME)), ['http', 'https'], true);
     }
 
     /**
@@ -220,11 +255,11 @@ class YahooFinanceAdapter
         $fin = $data['financialData'] ?? [];
 
         $targetRaw = $fin['targetMeanPrice']['raw'] ?? null;
-        $ratingRaw = $fin['recommendationKey']      ?? null;
+        $ratingRaw = $fin['recommendationKey'] ?? null;
 
         return [
             'target_price' => $targetRaw !== null ? (float) $targetRaw : null,
-            'rating'       => $ratingRaw ?: null,
+            'rating' => $ratingRaw ?: null,
         ];
     }
 
@@ -246,7 +281,7 @@ class YahooFinanceAdapter
         }
 
         $detail = $data['summaryDetail'] ?? [];
-        $raw    = (float) ($detail['dividendYield']['raw'] ?? $detail['yield']['raw'] ?? 0);
+        $raw = (float) ($detail['dividendYield']['raw'] ?? $detail['yield']['raw'] ?? 0);
 
         return $raw > 0 ? $raw : null;
     }
@@ -281,7 +316,7 @@ class YahooFinanceAdapter
 
         $best = $preferredSuffix === null
             ? null
-            : $quotes->first(fn(array $quote) => str_ends_with($quote['symbol'], $preferredSuffix));
+            : $quotes->first(fn (array $quote) => str_ends_with($quote['symbol'], $preferredSuffix));
 
         // Fall back to highest-scored result.
         $best ??= $quotes->sortByDesc('score')->first();
@@ -327,8 +362,8 @@ class YahooFinanceAdapter
         return $quotes->concat($siblings)
             ->pluck('symbol')
             ->unique()
-            ->reject(fn(string $symbol) => $symbol === $best['symbol'])
-            ->first(fn(string $symbol) => $this->quoteCurrency($symbol) === $tradeCurrency);
+            ->reject(fn (string $symbol) => $symbol === $best['symbol'])
+            ->first(fn (string $symbol) => $this->quoteCurrency($symbol) === $tradeCurrency);
     }
 
     /**
@@ -363,18 +398,18 @@ class YahooFinanceAdapter
         $response = Http::withHeaders(['User-Agent' => 'Mozilla/5.0'])
             ->timeout(15)
             ->get(self::SEARCH_URL, [
-                'q'           => $query,
+                'q' => $query,
                 'quotesCount' => 10,
-                'newsCount'   => 0,
-                'listsCount'  => 0,
+                'newsCount' => 0,
+                'listsCount' => 0,
             ]);
 
-        if (!$response->successful()) {
+        if (! $response->successful()) {
             return collect();
         }
 
         return collect($response->json('quotes') ?? [])
-            ->filter(fn($quote) => isset($quote['symbol'])
+            ->filter(fn ($quote) => isset($quote['symbol'])
                 && in_array($quote['quoteType'] ?? '', ['EQUITY', 'ETF', 'MUTUALFUND']))
             ->values();
     }
@@ -390,7 +425,7 @@ class YahooFinanceAdapter
             return $this->crumb;
         }
 
-        $this->cookies = new CookieJar();
+        $this->cookies = new CookieJar;
 
         Http::withHeaders(['User-Agent' => 'Mozilla/5.0'])
             ->withOptions(['cookies' => $this->cookies])
@@ -402,7 +437,7 @@ class YahooFinanceAdapter
             ->timeout(15)
             ->get(self::CRUMB_URL);
 
-        if (!$response->successful()) {
+        if (! $response->successful()) {
             return null;
         }
 
@@ -426,15 +461,15 @@ class YahooFinanceAdapter
         $response = Http::withHeaders(['User-Agent' => 'Mozilla/5.0'])
             ->withOptions(['cookies' => $this->cookies])
             ->timeout(15)
-            ->get(self::QUOTE_SUMMARY_URL . "/{$symbol}", ['modules' => $module, 'crumb' => $crumb]);
+            ->get(self::QUOTE_SUMMARY_URL."/{$symbol}", ['modules' => $module, 'crumb' => $crumb]);
 
-        if (!$response->successful()) {
+        if (! $response->successful()) {
             return null;
         }
 
         $body = $response->json();
 
-        if (!empty($body['quoteSummary']['error'])) {
+        if (! empty($body['quoteSummary']['error'])) {
             return null;
         }
 
@@ -452,14 +487,14 @@ class YahooFinanceAdapter
 
         $response = Http::withHeaders(['User-Agent' => 'Mozilla/5.0'])
             ->timeout(30)
-            ->get(self::CHART_URL . "/{$symbol}", [
+            ->get(self::CHART_URL."/{$symbol}", [
                 'interval' => '1d',
-                'period1'  => Carbon::parse($fromDate)->startOfDay()->unix(),
-                'period2'  => now()->unix(),
-                'events'   => 'div',
+                'period1' => Carbon::parse($fromDate)->startOfDay()->unix(),
+                'period2' => now()->unix(),
+                'events' => 'div',
             ]);
 
-        if (!$response->successful()) {
+        if (! $response->successful()) {
             throw new \RuntimeException(
                 "Yahoo Finance HTTP {$response->status()} for {$symbol}"
             );
@@ -467,15 +502,15 @@ class YahooFinanceAdapter
 
         $body = $response->json();
 
-        if (!empty($body['chart']['error'])) {
+        if (! empty($body['chart']['error'])) {
             throw new \RuntimeException(
-                "Yahoo Finance error for {$symbol}: " . $body['chart']['error']['description']
+                "Yahoo Finance error for {$symbol}: ".$body['chart']['error']['description']
             );
         }
 
         $result = $body['chart']['result'][0] ?? null;
 
-        if (!$result) {
+        if (! $result) {
             throw new \RuntimeException("No chart data returned for {$symbol}");
         }
 
@@ -490,10 +525,10 @@ class YahooFinanceAdapter
     private function parseOhlc(array $result): array
     {
         $timestamps = $result['timestamp'] ?? [];
-        $closes     = $result['indicators']['adjclose'][0]['adjclose']
+        $closes = $result['indicators']['adjclose'][0]['adjclose']
                    ?? $result['indicators']['quote'][0]['close']
                    ?? [];
-        $currency   = $result['meta']['currency'] ?? '';
+        $currency = $result['meta']['currency'] ?? '';
 
         $rows = [];
 
@@ -505,8 +540,8 @@ class YahooFinanceAdapter
             }
 
             $rows[] = [
-                'date'     => Carbon::createFromTimestamp($ts)->toDateString(),
-                'close'    => $close,
+                'date' => Carbon::createFromTimestamp($ts)->toDateString(),
+                'close' => $close,
                 'currency' => $currency,
             ];
         }

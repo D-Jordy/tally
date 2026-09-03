@@ -12,6 +12,8 @@ class ComputeNews
 {
     private const TTL = 1800;
 
+    private const FAILURE_TTL = 120;
+
     private const PER_GROUP = 6;
 
     private const MARKET_SYMBOLS = [
@@ -147,8 +149,15 @@ class ComputeNews
         $missing = $feeds->filter(fn (?array $headlines): bool => $headlines === null)->keys()->all();
 
         foreach ($this->yahoo->headlines($missing) as $symbol => $headlines) {
-            Cache::put($this->cacheKey($symbol), $headlines, self::TTL);
-            $feeds[$symbol] = $headlines;
+            // A failed fetch is held only briefly, so one Yahoo hiccup cannot blank the tab
+            // for half an hour. An empty feed is a real answer and keeps the full window.
+            Cache::put(
+                $this->cacheKey($symbol),
+                $headlines ?? [],
+                $headlines === null ? self::FAILURE_TTL : self::TTL,
+            );
+
+            $feeds[$symbol] = $headlines ?? [];
         }
 
         return $feeds->map(fn (?array $headlines): array => $headlines ?? [])->all();

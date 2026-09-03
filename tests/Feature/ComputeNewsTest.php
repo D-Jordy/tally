@@ -9,6 +9,7 @@ use App\Models\Instrument;
 use App\Models\PriceHistory;
 use App\Models\Transaction;
 use App\Models\User;
+use GuzzleHttp\Promise\PromiseInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -26,19 +27,20 @@ class ComputeNewsTest extends TestCase
         Cache::flush();
     }
 
-    /** @param array<int, array{0: string, 1: string}> $items [id, title] */
+    /** @param array<int, array{0: string, 1: string, 2?: string}> $items [id, title, url] */
     private function feed(array $items): string
     {
         // Yahoo escapes its own feed; an unescaped "S&P 500" here would fail to parse
         // and quietly turn every assertion below into "no headlines".
         $entries = collect($items)
+            ->map(fn (array $item): array => [...$item, 2 => $item[2] ?? "https://finance.yahoo.com/news/{$item[0]}.html"])
             ->map(fn (array $item): array => array_map(htmlspecialchars(...), $item))
             ->map(fn (array $item): string => <<<XML
                 <item>
                     <guid isPermaLink="false">{$item[0]}</guid>
                     <title>{$item[1]}</title>
                     <description>Some snippet.</description>
-                    <link>https://finance.yahoo.com/news/{$item[0]}.html</link>
+                    <link>{$item[2]}</link>
                     <pubDate>Wed, 02 Sep 2026 21:10:00 +0000</pubDate>
                 </item>
                 XML)
@@ -177,6 +179,64 @@ class ComputeNewsTest extends TestCase
         $this->assertSame($sentAfterFirst, count(Http::recorded()));
     }
 
+    /** A Yahoo hiccup must not blank the tab for the full cache window. */
+    public function test_a_failed_fetch_is_retried_within_minutes(): void
+    {
+        Http::fake(fn (): PromiseInterface => Http::response('', 503));
+
+        $user = $this->holder('ASML.AS', 'Technology');
+        $this->compute($user);
+        $afterFirst = count(Http::recorded());
+
+        $this->travel(5)->minutes();
+        $this->compute($user);
+
+        $this->assertGreaterThan($afterFirst, count(Http::recorded()));
+    }
+
+    /** Yahoo answers a malformed feed with a 200, so that has to count as a failure too. */
+    public function test_an_unparseable_feed_is_retried_within_minutes(): void
+    {
+        Http::fake(fn (): PromiseInterface => Http::response('<rss><channel><item></rss>'));
+
+        $user = $this->holder('ASML.AS', 'Technology');
+        $this->compute($user);
+        $afterFirst = count(Http::recorded());
+
+        $this->travel(5)->minutes();
+        $this->compute($user);
+
+        $this->assertGreaterThan($afterFirst, count(Http::recorded()));
+    }
+
+    /** An empty feed is a real answer rather than a failure, and keeps the full window. */
+    public function test_an_empty_feed_is_not_refetched(): void
+    {
+        $this->fakeFeeds([]);
+
+        $user = $this->holder('ASML.AS', 'Technology');
+        $this->compute($user);
+        $afterFirst = count(Http::recorded());
+
+        $this->travel(5)->minutes();
+        $this->compute($user);
+
+        $this->assertSame($afterFirst, count(Http::recorded()));
+    }
+
+    /** Feed links go straight into an href, where a javascript: URL would run on click. */
+    public function test_a_link_that_is_not_a_web_url_is_dropped(): void
+    {
+        $this->fakeFeeds(['ASML.AS' => $this->feed([
+            ['bad', 'Tap here', 'javascript:alert(1)'],
+            ['good', 'ASML lands a new order'],
+        ])]);
+
+        $news = $this->compute($this->holder('ASML.AS', 'Technology'));
+
+        $this->assertSame(['ASML lands a new order'], array_column($news['holdings'][0]['headlines'], 'title'));
+    }
+
     /** The page renders over a real HTTP request, not just in Livewire::test. */
     public function test_the_news_page_renders_the_headlines(): void
     {
@@ -187,7 +247,8 @@ class ComputeNewsTest extends TestCase
         Livewire::actingAs($user)
             ->test(News::class)
             ->assertSuccessful()
-            ->assertSee('ASML lands a new order');
+            ->assertSee('ASML lands a new order')
+            ->assertSee('Some snippet.');
 
         $this->actingAs($user)->get(News::getUrl())->assertSuccessful();
     }
