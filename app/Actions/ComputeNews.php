@@ -12,6 +12,8 @@ class ComputeNews
 {
     private const TTL = 1800;
 
+    private const FAILURE_TTL = 120;
+
     private const PER_GROUP = 6;
 
     private const MARKET_SYMBOLS = [
@@ -21,8 +23,12 @@ class ComputeNews
     ];
 
     /**
-     * Yahoo sector name → the SPDR sector ETF whose feed reports on it. Yahoo has no
-     * feed for a sector as such, and the ETF is the closest thing to one that exists.
+     * Yahoo sector name → the ETF whose feed reports on it. Yahoo has no feed for a
+     * sector as such, and the ETF is the closest thing to one that exists.
+     *
+     * SPDR's sector funds throughout, except Real Estate: XLRE's feed carries
+     * "Sector Update: Financial Stocks" and nothing about property, so that one row
+     * uses Vanguard's VNQ. Don't "fix" it back for consistency.
      */
     private const SECTOR_ETF = [
         'Technology' => 'XLK',
@@ -34,7 +40,7 @@ class ComputeNews
         'Energy' => 'XLE',
         'Basic Materials' => 'XLB',
         'Utilities' => 'XLU',
-        'Real Estate' => 'XLRE',
+        'Real Estate' => 'VNQ',
         'Communication Services' => 'XLC',
     ];
 
@@ -147,8 +153,15 @@ class ComputeNews
         $missing = $feeds->filter(fn (?array $headlines): bool => $headlines === null)->keys()->all();
 
         foreach ($this->yahoo->headlines($missing) as $symbol => $headlines) {
-            Cache::put($this->cacheKey($symbol), $headlines, self::TTL);
-            $feeds[$symbol] = $headlines;
+            // A failed fetch is held only briefly, so one Yahoo hiccup cannot blank the tab
+            // for half an hour. An empty feed is a real answer and keeps the full window.
+            Cache::put(
+                $this->cacheKey($symbol),
+                $headlines ?? [],
+                $headlines === null ? self::FAILURE_TTL : self::TTL,
+            );
+
+            $feeds[$symbol] = $headlines ?? [];
         }
 
         return $feeds->map(fn (?array $headlines): array => $headlines ?? [])->all();

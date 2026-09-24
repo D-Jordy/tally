@@ -43,7 +43,14 @@
                                             style="font-family:var(--font-sans);font-size:13px;line-height:1.4;color:var(--divio-ink);text-decoration:none;"
                                             class="hover:underline"
                                         >{{ $headline['title'] }}</a>
-                                        <div style="font-family:var(--font-sans);font-size:11px;color:var(--divio-muted-nav);margin-top:2px;">
+
+                                        @if ($headline['summary'] !== '')
+                                            <div style="font-family:var(--font-sans);font-size:12px;line-height:1.4;color:var(--divio-muted-nav);margin-top:3px;">
+                                                {{ \Illuminate\Support\Str::limit($headline['summary'], 130) }}
+                                            </div>
+                                        @endif
+
+                                        <div style="font-family:var(--font-sans);font-size:11px;color:var(--divio-muted-nav);margin-top:3px;">
                                             {{ $headline['published_at']->diffForHumans() }}
                                         </div>
                                     </li>

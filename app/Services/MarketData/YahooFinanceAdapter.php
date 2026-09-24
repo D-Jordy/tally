@@ -10,6 +10,7 @@ use Illuminate\Http\Client\Promises\LazyPromise;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use SimpleXMLElement;
 
 class YahooFinanceAdapter
@@ -163,8 +164,11 @@ class YahooFinanceAdapter
      * RSS feed is the only source that actually tracks the instrument. It wants the
      * suffixed symbol (ASRNL.AS), and a symbol it does not know yields an empty feed.
      *
+     * A null entry means the fetch failed, as opposed to a feed that is genuinely empty.
+     * The caller has to tell those apart before it decides how long to cache the answer.
+     *
      * @param  array<int, string>  $symbols
-     * @return array<string, array<int, array<string, mixed>>>
+     * @return array<string, array<int, array<string, mixed>>|null>
      */
     public function headlines(array $symbols): array
     {
@@ -176,39 +180,64 @@ class YahooFinanceAdapter
             ->all());
 
         return collect($symbols)
-            ->mapWithKeys(fn (string $symbol): array => [$symbol => $this->parseHeadlines($responses[$symbol] ?? null)])
+            ->mapWithKeys(fn (string $symbol): array => [$symbol => $this->parseHeadlines($symbol, $responses[$symbol] ?? null)])
             ->all();
     }
 
-    /** @return array<int, array<string, mixed>> */
-    private function parseHeadlines(mixed $response): array
+    /** @return array<int, array<string, mixed>>|null */
+    private function parseHeadlines(string $symbol, mixed $response): ?array
     {
-        if (! $response instanceof Response || ! $response->successful()) {
-            return [];
+        if (! $response instanceof Response) {
+            Log::warning("News: {$symbol} could not be reached");
+
+            return null;
         }
 
-        // Yahoo answers a malformed feed with a 200, so a parse failure is a normal outcome.
+        if (! $response->successful()) {
+            Log::warning("News: {$symbol} failed", ['status' => $response->status()]);
+
+            return null;
+        }
+
+        // Yahoo answers a malformed feed with a 200, so a parse failure is a runtime outcome.
         $feed = @simplexml_load_string($response->body());
 
         if ($feed === false) {
-            return [];
+            Log::warning("News: {$symbol} returned an unparseable feed");
+
+            return null;
         }
 
         // xpath, not ->channel->item: collecting that node collapses every sibling onto
         // the same 'item' key and silently leaves you with one headline.
-        return collect($feed->xpath('//item') ?: [])
+        $headlines = collect($feed->xpath('//item') ?: [])
             ->map(fn (SimpleXMLElement $item): array => [
                 'id' => (string) $item->guid ?: (string) $item->title,
                 'title' => trim((string) $item->title),
-                'summary' => trim((string) $item->description),
+                'summary' => trim(strip_tags((string) $item->description)),
                 'url' => trim((string) $item->link),
                 // UTC ISO, not a Carbon: these rows get cached, and an unserialised Carbon
                 // comes back as an incomplete object. Normalised so a string sort is chronological.
                 'published_at' => Carbon::parse((string) $item->pubDate)->utc()->toIso8601String(),
             ])
-            ->reject(fn (array $headline): bool => $headline['title'] === '' || $headline['url'] === '')
+            ->reject(fn (array $headline): bool => $headline['title'] === '' || ! $this->isWebLink($headline['url']))
             ->values()
             ->all();
+
+        if ($headlines === []) {
+            Log::warning("News: {$symbol} returned no headlines — Yahoo may not know this symbol");
+        }
+
+        return $headlines;
+    }
+
+    /**
+     * Feed links land straight in an href, and the feed is third-party: a javascript:
+     * or data: URL would run on click.
+     */
+    private function isWebLink(string $url): bool
+    {
+        return in_array(strtolower((string) parse_url($url, PHP_URL_SCHEME)), ['http', 'https'], true);
     }
 
     /**
