@@ -64,11 +64,13 @@ class DividendCalendarTable extends TableWidget
                     ->scopeQueryByKeyUsing(fn (Builder $query, string $key): Builder => $query->whereRaw('to_char('.self::ARRIVES_ON.", 'YYYY-MM') = ?", [$key]))
             )
             ->columns([
-                TextColumn::make('confirmed')
+                // Keyed on `projected`, not `confirmed`: a payment that has already gone
+                // ex is a fact too, even though nothing announced it ahead of time.
+                TextColumn::make('projected')
                     ->label('')
                     ->badge()
-                    ->formatStateUsing(fn (bool $state): string => $state ? __('dividends.badge.confirmed') : __('dividends.badge.estimate'))
-                    ->color(fn (bool $state): string => $state ? 'success' : 'gray'),
+                    ->formatStateUsing(fn (bool $state): string => $state ? __('dividends.badge.estimate') : __('dividends.badge.confirmed'))
+                    ->color(fn (bool $state): string => $state ? 'gray' : 'success'),
                 TextColumn::make('instrument.name')
                     ->label(__('dividends.table.instrument'))
                     ->weight(FontWeight::SemiBold)
@@ -114,7 +116,7 @@ class DividendCalendarTable extends TableWidget
                         '0' => __('dividends.badge.estimate'),
                     ])
                     ->query(fn (Builder $query, array $data): Builder => $query
-                        ->when($data['value'] !== null && $data['value'] !== '', fn (Builder $query): Builder => $query->where('confirmed', (bool) $data['value']))),
+                        ->when($data['value'] !== null && $data['value'] !== '', fn (Builder $query): Builder => $query->where('projected', ! (bool) $data['value']))),
             ]);
     }
 
@@ -126,7 +128,7 @@ class DividendCalendarTable extends TableWidget
      */
     private function fadeEstimates(): Closure
     {
-        return fn (Dividend $record): array => $record->confirmed ? [] : ['style' => 'opacity:.5'];
+        return fn (Dividend $record): array => $record->projected ? ['style' => 'opacity:.5'] : [];
     }
 
     /** The date the money lands: pay date where the provider gave one, else ex-date. */

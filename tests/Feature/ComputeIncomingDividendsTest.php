@@ -432,4 +432,47 @@ class ComputeIncomingDividendsTest extends TestCase
         // monthly buckets, which a single annual figure cannot produce.
         $this->assertGreaterThanOrEqual(200.00, $row['forward_12m_eur']);
     }
+
+    public function test_a_dividend_that_went_ex_but_has_not_been_paid_stays_on_the_calendar(): void
+    {
+        $this->travelTo(Carbon::parse('2026-09-11'));
+
+        $user = User::factory()->create();
+        $account = Account::factory()->create(['user_id' => $user->id]);
+
+        $awaiting = Instrument::factory()->create(['yahoo_symbol' => 'RIO.L', 'quote_currency' => 'EUR']);
+        $paid = Instrument::factory()->create(['yahoo_symbol' => 'ABN.AS', 'quote_currency' => 'EUR']);
+
+        foreach ([$awaiting, $paid] as $instrument) {
+            Dividend::factory()->create([
+                'instrument_id' => $instrument->id,
+                'ex_date' => '2026-08-13',
+                'amount_per_share' => 1.00,
+                'currency' => 'EUR',
+            ]);
+        }
+
+        CashMovement::factory()->create([
+            'account_id' => $account->id,
+            'instrument_id' => $paid->id,
+            'type' => 'dividend',
+            'amount' => 100.00,
+            'currency' => 'EUR',
+            'occurred_at' => Carbon::parse('2026-08-20'),
+        ]);
+
+        $action = $this->makeAction([
+            ['instrument_id' => $awaiting->id, 'quantity' => 100],
+            ['instrument_id' => $paid->id, 'quantity' => 100],
+        ]);
+
+        $result = $action->forUser($user);
+
+        $this->assertSame([$awaiting->id], array_column($result['confirmed'], 'instrument_id'));
+        $this->assertSame(100.00, $result['summary']['next_12m_total_eur']);
+
+        // Ex-date was last month, but the money arrives now: first bucket, not dropped.
+        $this->assertSame('2026-09', $result['monthly'][0]['month']);
+        $this->assertSame(100.00, $result['monthly'][0]['expected_eur']);
+    }
 }

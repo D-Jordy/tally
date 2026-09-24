@@ -20,12 +20,12 @@ class PriceSyncService
      */
     public function syncInstrument(Instrument $instrument): int
     {
-        if (!$instrument->yahoo_symbol) {
+        if (! $instrument->yahoo_symbol) {
             return 0;
         }
 
         $fromDate = $this->instrumentFromDate($instrument);
-        if (!$fromDate) {
+        if (! $fromDate) {
             return 0;
         }
 
@@ -46,11 +46,11 @@ class PriceSyncService
 
             $records[] = [
                 'instrument_id' => $instrument->id,
-                'date'          => $row['date'],
-                'close'         => $close,
-                'currency'      => $currency,
-                'created_at'    => $now,
-                'updated_at'    => $now,
+                'date' => $row['date'],
+                'close' => $close,
+                'currency' => $currency,
+                'created_at' => $now,
+                'updated_at' => $now,
             ];
         }
 
@@ -91,11 +91,11 @@ class PriceSyncService
 
         foreach ($rows as $row) {
             $records[] = [
-                'date'        => $row['date'],
-                'currency'    => $currency,
+                'date' => $row['date'],
+                'currency' => $currency,
                 'rate_to_eur' => (string) $row['rate'],
-                'created_at'  => $now,
-                'updated_at'  => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
             ];
         }
 

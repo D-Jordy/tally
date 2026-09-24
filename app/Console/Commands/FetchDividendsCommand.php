@@ -8,7 +8,8 @@ use Illuminate\Console\Command;
 
 class FetchDividendsCommand extends Command
 {
-    protected $signature   = 'dividends:fetch';
+    protected $signature = 'dividends:fetch';
+
     protected $description = 'Backfill historical dividends from Yahoo Finance for all known instruments';
 
     public function handle(DividendSyncService $sync): int
@@ -17,6 +18,7 @@ class FetchDividendsCommand extends Command
 
         if ($instruments->isEmpty()) {
             $this->info('No instruments with a Yahoo symbol found.');
+
             return self::SUCCESS;
         }
 
@@ -33,6 +35,7 @@ class FetchDividendsCommand extends Command
         }
 
         $this->info("Done — {$total} dividend rows upserted.");
+
         return self::SUCCESS;
     }
 }

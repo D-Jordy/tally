@@ -7,12 +7,14 @@ use Illuminate\Console\Command;
 
 class FetchPricesCommand extends Command
 {
-    protected $signature   = 'prices:fetch';
+    protected $signature = 'prices:fetch';
+
     protected $description = 'Sync market prices and FX rates (runs SyncMarketDataJob synchronously)';
 
     public function handle(): int
     {
-        dispatch_sync(new SyncMarketDataJob());
+        dispatch_sync(new SyncMarketDataJob);
+
         return self::SUCCESS;
     }
 }

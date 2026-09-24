@@ -5,8 +5,8 @@ namespace App\Services\Import;
 class ImportResult
 {
     public function __construct(
-        public readonly int   $inserted,
-        public readonly int   $skipped,
+        public readonly int $inserted,
+        public readonly int $skipped,
         public readonly array $errors = [],
     ) {}
 
@@ -19,8 +19,8 @@ class ImportResult
     {
         return [
             'inserted' => $this->inserted,
-            'skipped'  => $this->skipped,
-            'errors'   => $this->errors,
+            'skipped' => $this->skipped,
+            'errors' => $this->errors,
         ];
     }
 }

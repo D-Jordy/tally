@@ -13,6 +13,11 @@ use Illuminate\Support\Facades\DB;
 
 class ComputeIncomingDividends
 {
+    // Yahoo gives historical rows no pay date, so a payment that has gone ex is owed
+    // but invisible until its cash movement is imported. The calendar keeps showing it
+    // for this long after the ex-date, which covers the usual ex-to-pay lag.
+    private const UNPAID_GRACE_DAYS = 45;
+
     public function __construct(private ComputePortfolio $portfolio) {}
 
     /**
@@ -68,6 +73,29 @@ class ComputeIncomingDividends
                 ->get(),
             $qtyByInstrument,
         );
+
+        // Real payments that already went ex and whose cash has not landed yet. They
+        // are facts, not forecasts, so they join the confirmed list rather than the
+        // projections, and drop off as soon as a dividend cash movement matches them.
+        $awaiting = $this->rejectAlreadyPaid(
+            $this->toEvents(
+                Dividend::whereIn('instrument_id', $instrumentIds)
+                    ->where('confirmed', false)
+                    ->where('projected', false)
+                    ->whereBetween('ex_date', [
+                        $today->copy()->subDays(self::UNPAID_GRACE_DAYS)->toDateString(),
+                        $today->copy()->subDay()->toDateString(),
+                    ])
+                    ->orderBy('ex_date')
+                    ->with('instrument')
+                    ->get(),
+                $qtyByInstrument,
+            ),
+            $accountIds,
+            $today->copy()->subDays(self::UNPAID_GRACE_DAYS),
+        );
+
+        $confirmed = [...$awaiting, ...$confirmed];
 
         $currencies = collect($confirmed)->pluck('currency')->merge(collect($events)->pluck('currency'));
 
@@ -281,7 +309,9 @@ class ComputeIncomingDividends
         }
 
         foreach ($events as $event) {
-            $month = substr($event['ex_date'], 0, 7);
+            // A payment that went ex last month still arrives now, so it belongs in the
+            // first bucket instead of falling outside the twelve entirely.
+            $month = max(substr($event['pay_date'] ?? $event['ex_date'], 0, 7), $today->format('Y-m'));
 
             if (array_key_exists($month, $buckets) && $event['expected_eur'] !== null) {
                 $buckets[$month] += $event['expected_eur'];
@@ -293,6 +323,33 @@ class ComputeIncomingDividends
             array_keys($buckets),
             array_values($buckets),
         );
+    }
+
+    /**
+     * Drop gone-ex events whose cash has already landed — they belong to the trailing
+     * total from that moment on, and leaving them in would count the payment twice.
+     *
+     * @param  array<int, array<string, mixed>>  $events
+     * @return array<int, array<string, mixed>>
+     */
+    private function rejectAlreadyPaid(array $events, mixed $accountIds, Carbon $since): array
+    {
+        if ($events === [] || $accountIds->isEmpty()) {
+            return $events;
+        }
+
+        $lastPaid = CashMovement::whereIn('account_id', $accountIds)
+            ->where('type', 'dividend')
+            ->whereIn('instrument_id', array_column($events, 'instrument_id'))
+            ->where('occurred_at', '>=', $since)
+            ->get(['instrument_id', 'occurred_at'])
+            ->groupBy('instrument_id')
+            ->map(fn (Collection $rows): string => $rows->max('occurred_at')->toDateString());
+
+        return collect($events)
+            ->reject(fn (array $event): bool => ($lastPaid->get($event['instrument_id']) ?? '') >= $event['ex_date'])
+            ->values()
+            ->all();
     }
 
     private function rawTrailingRows(mixed $accountIds): Collection
