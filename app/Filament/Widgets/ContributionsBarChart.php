@@ -44,7 +44,7 @@ class ContributionsBarChart extends ApexChartWidget
             'colors' => [ChartTheme::POSITIVE],
             'plotOptions' => ['bar' => ['columnWidth' => '52%', 'borderRadius' => 2]],
             // No deposits yet: a dashed line at zero is noise, not a reference.
-            'annotations' => $this->average <= 0 ? [] : ['yaxis' => [[
+            ...($this->average <= 0 ? [] : ['annotations' => ['yaxis' => [[
                 'y' => round($this->average, 2),
                 'borderColor' => ChartTheme::INK,
                 'strokeDashArray' => 4,
@@ -55,7 +55,7 @@ class ContributionsBarChart extends ApexChartWidget
                     'borderColor' => 'transparent',
                     'style' => ['background' => ChartTheme::CARD, 'color' => ChartTheme::MUTED, 'fontFamily' => ChartTheme::MONO],
                 ],
-            ]]],
+            ]]]]),
             'grid' => ChartTheme::grid(),
             'legend' => ['show' => false],
             'dataLabels' => ['enabled' => false],

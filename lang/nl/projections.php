@@ -13,7 +13,7 @@ return [
         'current' => 'Huidige portefeuille',
         'expected' => 'Verwacht over :years jaar',
         'growth_rate' => 'Gemengde groeivoet',
-        'dividends' => 'Dividenden over :years jaar',
+        'dividends' => 'Dividend in jaar :years',
     ],
 
     'chart' => [
