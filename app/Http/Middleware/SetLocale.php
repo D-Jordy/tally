@@ -12,8 +12,8 @@ class SetLocale
 {
     public function handle(Request $request, Closure $next): Response
     {
-        // Pick the best Accept-Language match; first entry ('nl') is the fallback.
-        $locale = $request->getPreferredLanguage(['nl', 'en']);
+        // Pick the best Accept-Language match; English unless the browser asks for Dutch.
+        $locale = $request->getPreferredLanguage(['en', 'nl']);
 
         app()->setLocale($locale);
         Carbon::setLocale($locale);
