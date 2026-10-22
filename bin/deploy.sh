@@ -5,7 +5,9 @@ set -euo pipefail
 
 COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
 
-$COMPOSE up -d --build
+# --pull so a redeploy picks up base-image security patches (e.g. PHP 8.5.12)
+$COMPOSE build --pull
+$COMPOSE up -d
 
 # The app container may still be running its boot entrypoint; retry until the
 # migrate command lands, then warm the framework caches for production.
