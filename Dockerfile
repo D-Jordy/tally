@@ -9,9 +9,6 @@ RUN apt-get update && apt-get install -y \
 # PHP extensions
 RUN docker-php-ext-install pdo pdo_pgsql mbstring exif pcntl bcmath intl zip
 
-# Mitigates CVE-2026-109619 until the official image ships PHP 8.5.12
-RUN printf "session.upload_progress.enabled=0\nfatal_error_backtraces=0\n" > /usr/local/etc/php/conf.d/zz-security.ini
-
 # Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
